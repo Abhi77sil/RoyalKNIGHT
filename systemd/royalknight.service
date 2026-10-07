@@ -1,0 +1,22 @@
+[Unit]
+Description=RoyalKnight Web Hosting Control Panel
+After=network.target network-online.target systemd-sysctl.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/var/lib/royalknight
+ExecStart=/usr/local/bin/royalknight -port 7777 -db /var/lib/royalknight/panel.db -sites-dir /var/www -snapshots-dir /var/lib/royalknight/snapshots -nginx-dir /etc/nginx -ssl-dir /etc/ssl/royalknight
+Restart=always
+RestartSec=5s
+LimitNOFILE=65535
+AmbientCapabilities=CAP_NET_BIND_SERVICE CAP_SYS_ADMIN
+NoNewPrivileges=false
+
+# Environment
+Environment=GIN_MODE=release
+
+[Install]
+WantedBy=multi-user.target

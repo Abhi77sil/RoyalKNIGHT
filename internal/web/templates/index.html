@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RoyalKnight Panel</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="layout">
+    <header class="header">
+      <div class="header-brand">
+        <span class="logo">RoyalKnight</span>
+        <span class="badge" id="headerEngineBadge">Engine: Loading...</span>
+        <span class="badge badge-ip" id="badgeIPv4" title="Click to copy IPv4 for DNS A record">IPv4: Resolving...</span>
+        <span class="badge badge-ip" id="badgeIPv6" style="display:none;" title="Click to copy IPv6 for DNS AAAA record">IPv6: ...</span>
+      </div>
+      <div class="header-actions">
+        <button id="logoutBtn" class="btn btn-secondary btn-sm">Sign Out</button>
+      </div>
+    </header>
+
+    <!-- Real-time System Metrics Bar -->
+    <div class="metrics-bar">
+      <div class="metric-item">
+        <span class="metric-label">CPU Usage</span>
+        <span class="metric-value" id="metricCPU">-- %</span>
+        <div class="mini-bar"><div class="mini-fill" id="fillCPU" style="width:0%"></div></div>
+      </div>
+      <div class="metric-item">
+        <span class="metric-label">Memory</span>
+        <span class="metric-value" id="metricRAM">-- / --</span>
+        <div class="mini-bar"><div class="mini-fill" id="fillRAM" style="width:0%"></div></div>
+      </div>
+      <div class="metric-item">
+        <span class="metric-label">Disk Storage</span>
+        <span class="metric-value" id="metricDisk">-- / --</span>
+        <div class="mini-bar"><div class="mini-fill" id="fillDisk" style="width:0%"></div></div>
+      </div>
+      <div class="metric-item">
+        <span class="metric-label">Uptime</span>
+        <span class="metric-value" id="metricUptime">--</span>
+      </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <!-- Navigation Tabs -->
+    <nav class="nav-tabs">
+      <button class="tab-btn active" data-tab="tab-sites">Sites & Routing</button>
+      <button class="tab-btn" data-tab="tab-health">Site Health & Domains</button>
+      <button class="tab-btn" data-tab="tab-traffic">Traffic & Analytics</button>
+      <button class="tab-btn" data-tab="tab-snapshots">Site Versions & Images</button>
+      <button class="tab-btn" data-tab="tab-files">File Manager & Editor</button>
+      <button class="tab-btn" data-tab="tab-system">Certificates & Logs</button>
+    </nav>
+
+    <main class="content">
+      <!-- Tab 1: Sites & Routing -->
+      <div id="tab-sites" class="tab-pane active">
+        <!-- Server DNS Configuration Guidance Card -->
+        <div class="dns-helper-card">
+          <div class="dns-helper-header">
+            <div>
+              <span class="dns-helper-title">Server DNS Configuration</span>
+              <span class="text-muted">Point domain records at your DNS provider (e.g., Cloudflare, Namecheap) to this VPS:</span>
+            </div>
+            <div class="dns-helper-items">
+              <div class="dns-badge-box">
+                <span class="dns-lbl">A Record (IPv4):</span>
+                <code class="dns-ip-code" id="dnsDisplayIPv4">Resolving...</code>
+                <button type="button" class="btn btn-secondary btn-xs" id="copyDnsIPv4Btn">Copy</button>
+              </div>
+              <div class="dns-badge-box" id="dnsBoxIPv6" style="display:none;">
+                <span class="dns-lbl">AAAA Record (IPv6):</span>
+                <code class="dns-ip-code" id="dnsDisplayIPv6">--</code>
+                <button type="button" class="btn btn-secondary btn-xs" id="copyDnsIPv6Btn">Copy</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <section class="card">
+          <div class="card-header">
+            <h2>Web Server Engine</h2>
+            <span class="badge" id="switchStatusText">State: Idle</span>
+          </div>
+          <p class="description">
+            Active web server handles port 80/443. Switching performs pre-configuration, verification, and automatic rollback on failure.
+          </p>
+          <div class="engine-actions">
+            <button id="switchToCaddyBtn" class="btn btn-secondary">Switch to Caddy</button>
+            <button id="switchToNginxBtn" class="btn btn-secondary">Switch to Nginx</button>
+          </div>
+          <div id="switchAlert" class="alert" style="display:none;"></div>
+        </section>
+
+        <section class="card">
+          <div class="card-header">
+            <h2>Deploy Site Archive</h2>
+          </div>
+          <form id="deployForm" class="deploy-grid">
+            <div class="form-group">
+              <label for="domainInput">Domain Name</label>
+              <input type="text" id="domainInput" placeholder="example.com" required />
+            </div>
+            <div class="form-group">
+              <label for="zipFileInput">Website Archive (.zip)</label>
+              <input type="file" id="zipFileInput" accept=".zip" required />
+            </div>
+            <div class="form-group form-check">
+              <label>
+                <input type="checkbox" id="sslCheckbox" checked />
+                Automatic SSL/TLS Certificate
+              </label>
+            </div>
+            <div class="form-actions">
+              <button type="submit" id="deployBtn" class="btn btn-primary">Deploy Archive</button>
+            </div>
+          </form>
+          <div id="deployProgress" class="progress-bar-container" style="display:none;">
+            <div class="progress-bar" id="deployProgressBar"></div>
+          </div>
+          <div id="deployAlert" class="alert" style="display:none;"></div>
+        </section>
+
+        <section class="card">
+          <div class="card-header">
+            <h2>Deployed Sites</h2>
+          </div>
+          <table class="table" id="sitesTable">
+            <thead>
+              <tr>
+                <th>Domain</th>
+                <th>Active Version</th>
+                <th>Document Root</th>
+                <th>SSL</th>
+                <th>Status</th>
+                <th>Created</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="sitesTableBody">
+              <tr><td colspan="7" class="text-muted">Loading sites...</td></tr>
+            </tbody>
+          </table>
+        </section>
+      </div>
+
+      <!-- Tab 2: Site Health & Domain Probes -->
+      <div id="tab-health" class="tab-pane">
+        <section class="card">
+          <div class="card-header">
+            <h2>Domain Validation & Health Probes</h2>
+            <button id="refreshHealthBtn" class="btn btn-secondary btn-sm">Probe All Sites</button>
+          </div>
+          <p class="description">
+            Live uptime probes verify DNS records, HTTP response latency, and TLS certificate expiration status.
+          </p>
+          <table class="table" id="healthTable">
+            <thead>
+              <tr>
+                <th>Domain</th>
+                <th>Health Status</th>
+                <th>HTTP Code</th>
+                <th>Latency</th>
+                <th>SSL Expiry</th>
+                <th>Resolved IPs</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="healthTableBody">
+              <tr><td colspan="7" class="text-muted">Loading health data...</td></tr>
+            </tbody>
+          </table>
+        </section>
+      </div>
+
+      <!-- Tab 3: Site Traffic & Analytics -->
+      <div id="tab-traffic" class="tab-pane">
+        <section class="card">
+          <div class="card-header">
+            <h2>Traffic Overview & Peak Hours</h2>
+            <select id="trafficDomainSelect" class="form-select form-select-sm"></select>
+          </div>
+
+          <div class="analytics-grid">
+            <div class="stat-card">
+              <span class="stat-label">Total Hits</span>
+              <span class="stat-value" id="statTotalHits">0</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-label">Unique Visitors</span>
+              <span class="stat-value" id="statUniqueVisitors">0</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-label">Hits Today</span>
+              <span class="stat-value" id="statHitsToday">0</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-label">Peak Traffic Hour</span>
+              <span class="stat-value" id="statPeakHour">--:00</span>
+            </div>
+          </div>
+
+          <div class="chart-section">
+            <h3 class="section-title">24-Hour Traffic Distribution</h3>
+            <div class="hourly-bars" id="hourlyChartContainer"></div>
+          </div>
+
+          <div class="top-paths-section">
+            <h3 class="section-title">Top Requested Paths</h3>
+            <table class="table" id="trafficPathsTable">
+              <thead>
+                <tr>
+                  <th>Path</th>
+                  <th>Hits</th>
+                </tr>
+              </thead>
+              <tbody id="trafficPathsTableBody">
+                <tr><td colspan="2" class="text-muted">No traffic records yet.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+
+      <!-- Tab 4: Site Images & Snapshots -->
+      <div id="tab-snapshots" class="tab-pane">
+        <section class="card">
+          <div class="card-header">
+            <h2>Upload New Site Version Image</h2>
+          </div>
+          <p class="description">
+            Upload a .zip website archive as a named version image. You can store multiple versions and switch any one of them to live at any time without downtime.
+          </p>
+          <form id="uploadVersionForm" class="deploy-grid">
+            <div class="form-group">
+              <label for="versionDomainSelect">Domain</label>
+              <select id="versionDomainSelect" class="form-select"></select>
+            </div>
+            <div class="form-group">
+              <label for="versionNameInput">Version Image Tag</label>
+              <input type="text" id="versionNameInput" placeholder="e.g. v2.0-canary, promo-v1" required />
+            </div>
+            <div class="form-group">
+              <label for="versionZipFileInput">Version Archive (.zip)</label>
+              <input type="file" id="versionZipFileInput" accept=".zip" required />
+            </div>
+            <div class="form-group form-check">
+              <label>
+                <input type="checkbox" id="versionMakeLiveCheckbox" checked />
+                Make this version live immediately
+              </label>
+            </div>
+            <div class="form-actions">
+              <button type="submit" id="uploadVersionBtn" class="btn btn-primary">
+                <span id="versionBtnSpinner" class="spinner" style="display:none;"></span>
+                Upload & Register Version Image
+              </button>
+            </div>
+          </form>
+          <div id="versionAlert" class="alert" style="display:none;"></div>
+        </section>
+
+        <section class="card">
+          <div class="card-header">
+            <h2>Freeze Current Live State as Image</h2>
+          </div>
+          <p class="description">
+            Capture a frozen copy of the currently live website files under a new version tag.
+          </p>
+          <form id="snapshotForm" class="deploy-grid">
+            <div class="form-group">
+              <label for="snapshotDomainSelect">Domain</label>
+              <select id="snapshotDomainSelect" class="form-select"></select>
+            </div>
+            <div class="form-group">
+              <label for="snapshotNameInput">Image Tag / Name</label>
+              <input type="text" id="snapshotNameInput" placeholder="e.g. backup-before-update" required />
+            </div>
+            <div class="form-actions">
+              <button type="submit" id="saveSnapshotBtn" class="btn btn-secondary">
+                <span id="snapshotBtnSpinner" class="spinner" style="display:none;"></span>
+                Freeze Live State
+              </button>
+            </div>
+          </form>
+          <div id="snapshotAlert" class="alert" style="display:none;"></div>
+        </section>
+
+        <section class="card">
+          <div class="card-header">
+            <h2>Stored Site Version Images</h2>
+            <div class="filemgr-header-actions">
+              <label for="snapshotDomainSelect" class="text-muted" style="font-size:12px;">Filter Domain:</label>
+              <select id="snapshotDomainSelect" class="form-select form-select-sm" style="max-width:200px;"></select>
+            </div>
+          </div>
+          <table class="table" id="snapshotsTable">
+            <thead>
+              <tr>
+                <th>Version Image Tag</th>
+                <th>Domain</th>
+                <th>Live Status</th>
+                <th>Storage Path</th>
+                <th>Captured / Uploaded</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="snapshotsTableBody">
+              <tr><td colspan="6" class="text-muted">Select domain or no snapshots captured.</td></tr>
+            </tbody>
+          </table>
+        </section>
+      </div>
+
+      <!-- Tab 5: File Manager & Code Editor -->
+      <div id="tab-files" class="tab-pane">
+        <section class="card">
+          <div class="card-header">
+            <h2>File Manager</h2>
+            <div class="filemgr-header-actions">
+              <select id="fileDomainSelect" class="form-select form-select-sm"></select>
+              <input type="text" id="fileSearchInput" placeholder="Filter files..." class="form-input-sm" />
+              <button id="newFileBtn" class="btn btn-secondary btn-sm">New File</button>
+              <button id="newFolderBtn" class="btn btn-secondary btn-sm">New Folder</button>
+              <button id="uploadFileTriggerBtn" class="btn btn-secondary btn-sm">Upload File</button>
+              <input type="file" id="fileDirectInput" style="display:none;" />
+            </div>
+          </div>
+
+          <div class="breadcrumb" id="fileBreadcrumb">
+            <span class="breadcrumb-item" data-path="">root</span>
+          </div>
+
+          <table class="table" id="filesTable">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Size</th>
+                <th>Modified</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="filesTableBody">
+              <tr><td colspan="4" class="text-muted">Select a site to explore files...</td></tr>
+            </tbody>
+          </table>
+          <div id="fileAlert" class="alert" style="display:none;"></div>
+        </section>
+
+        <!-- Inbuilt Code Editor -->
+        <section class="card" id="editorCard" style="display:none;">
+          <div class="card-header">
+            <h2>Code Editor: <span id="editorCurrentFile" class="text-muted"></span></h2>
+            <div class="editor-actions">
+              <span id="editorSaveStatus" class="editor-status"></span>
+              <button id="editorSaveBtn" class="btn btn-primary btn-sm">Save Changes</button>
+              <button id="editorCloseBtn" class="btn btn-secondary btn-sm">Close</button>
+            </div>
+          </div>
+          <div class="editor-wrapper">
+            <textarea id="editorTextarea" spellcheck="false"></textarea>
+          </div>
+        </section>
+
+        <!-- Image Preview Modal -->
+        <div id="imagePreviewModal" class="modal" style="display:none;">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h3 id="imagePreviewTitle">Image Preview</h3>
+              <button id="closeImagePreviewBtn" class="btn btn-secondary btn-sm">&times;</button>
+            </div>
+            <div class="modal-body text-center">
+              <img id="imagePreviewElement" src="" alt="Preview" style="max-width:100%; max-height:500px; border-radius:4px;" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab 6: System Certificates & Logs -->
+      <div id="tab-system" class="tab-pane">
+        <section class="card">
+          <div class="card-header">
+            <h2>Managed SSL Certificates</h2>
+          </div>
+          <table class="table" id="certsTable">
+            <thead>
+              <tr>
+                <th>Domain</th>
+                <th>Certificate Path</th>
+                <th>Issuer</th>
+                <th>Expires</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="certsTableBody">
+              <tr><td colspan="5" class="text-muted">Loading certificates...</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section class="card">
+          <div class="card-header">
+            <h2>Engine Switch Audit Trail</h2>
+          </div>
+          <table class="table" id="logsTable">
+            <thead>
+              <tr>
+                <th>Timestamp</th>
+                <th>From</th>
+                <th>To</th>
+                <th>Result</th>
+                <th>Details</th>
+              </tr>
+            </thead>
+            <tbody id="logsTableBody">
+              <tr><td colspan="5" class="text-muted">Loading logs...</td></tr>
+            </tbody>
+          </table>
+        </section>
+      </div>
+    </main>
+  </div>
+  <script src="/static/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,23 @@
+services:
+  royalknight:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: royalknight:latest
+    container_name: royalknight-test
+    restart: unless-stopped
+    ports:
+      - "7777:7777"
+      - "80:80"
+      - "443:443"
+    environment:
+      - ADMIN_USER=admin
+      - ADMIN_PASS=admin123456
+      - PORT=7777
+    volumes:
+      - royalknight_data:/var/lib/royalknight
+      - royalknight_www:/var/www
+
+volumes:
+  royalknight_data:
+  royalknight_www:

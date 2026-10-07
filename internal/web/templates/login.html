@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login - RoyalKnight Control Panel</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="auth-body">
+  <div class="auth-card">
+    <div class="brand">RoyalKnight</div>
+    <div class="subtitle">Minimalist VPS Web Hosting Panel</div>
+    <form id="loginForm">
+      <div class="form-group">
+        <label for="username">Username</label>
+        <input type="text" id="username" name="username" required autocomplete="username" />
+      </div>
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" required autocomplete="current-password" />
+      </div>
+      <button type="submit" class="btn btn-primary" id="loginBtn">Sign In</button>
+      <div id="loginError" class="error-msg" style="display:none;"></div>
+    </form>
+  </div>
+  <script>
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const errEl = document.getElementById('loginError');
+      errEl.style.display = 'none';
+      const btn = document.getElementById('loginBtn');
+      btn.disabled = true;
+
+      const body = {
+        username: document.getElementById('username').value,
+        password: document.getElementById('password').value
+      };
+
+      try {
+        const res = await fetch('/api/login', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          errEl.innerText = data.error || 'Login failed';
+          errEl.style.display = 'block';
+          btn.disabled = false;
+          return;
+        }
+        window.location.href = '/admin';
+      } catch (err) {
+        errEl.innerText = 'Network error';
+        errEl.style.display = 'block';
+        btn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

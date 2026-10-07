@@ -1,0 +1,25 @@
+# Binaries and build artifacts
+bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Database, state, and runtime data
+*.db
+*.db-shm
+*.db-wal
+data/
+snapshots/
+
+# Logs and temporary files
+*.log
+/tmp/
+
+# OS and IDE configuration
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*~
