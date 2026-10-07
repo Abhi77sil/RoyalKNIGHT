@@ -117,8 +117,13 @@ systemctl stop nginx.service 2>/dev/null || true
 echo "[3/6] Installing binary to /usr/local/bin/royalknight..."
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# Stop active service and processes to prevent "Text file busy" error
+systemctl stop royalknight.service 2>/dev/null || true
+pkill -9 -x royalknight 2>/dev/null || true
+
 if [ -f "$SCRIPT_DIR/bin/royalknight" ]; then
-  cp "$SCRIPT_DIR/bin/royalknight" /usr/local/bin/royalknight
+  cp "$SCRIPT_DIR/bin/royalknight" /usr/local/bin/royalknight.new
+  mv -f /usr/local/bin/royalknight.new /usr/local/bin/royalknight
 else
   if ! command -v go >/dev/null 2>&1; then
     echo "Go compiler not found. Automatically installing Go..."
