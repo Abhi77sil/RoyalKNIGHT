@@ -101,6 +101,12 @@ func (c *CaddyAdapter) pushFullConfig() error {
 						{
 							"handle": []map[string]any{
 								{
+									"handler": "encode",
+									"encodings": map[string]any{
+										"gzip": map[string]any{},
+									},
+								},
+								{
 									"handler": "file_server",
 									"root":    root,
 								},
@@ -133,23 +139,32 @@ func (c *CaddyAdapter) pushFullConfig() error {
 		return fmt.Errorf("failed to marshal caddy config: %w", err)
 	}
 
-	req, err := http.NewRequest(http.MethodPost, c.adminURL+"/load", bytes.NewReader(payload))
-	if err != nil {
-		return fmt.Errorf("failed to create caddy /load request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
+	// Try sending with automatic startup/retry if admin API is initializing
+	var lastErr error
+	for attempt := 1; attempt <= 3; attempt++ {
+		req, err := http.NewRequest(http.MethodPost, c.adminURL+"/load", bytes.NewReader(payload))
+		if err != nil {
+			return fmt.Errorf("failed to create caddy /load request: %w", err)
+		}
+		req.Header.Set("Content-Type", "application/json")
 
-	resp, err := c.client.Do(req)
-	if err != nil {
-		return fmt.Errorf("failed to communicate with caddy admin API: %w", err)
-	}
-	defer resp.Body.Close()
+		resp, err := c.client.Do(req)
+		if err != nil {
+			lastErr = err
+			// Try starting caddy if connection refused
+			_ = c.Start()
+			time.Sleep(600 * time.Millisecond)
+			continue
+		}
 
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		buf := new(bytes.Buffer)
-		_, _ = buf.ReadFrom(resp.Body)
-		return fmt.Errorf("caddy rejected config (status %d): %s", resp.StatusCode, buf.String())
+		defer resp.Body.Close()
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			buf := new(bytes.Buffer)
+			_, _ = buf.ReadFrom(resp.Body)
+			return fmt.Errorf("caddy rejected config (status %d): %s", resp.StatusCode, buf.String())
+		}
+		return nil
 	}
 
-	return nil
+	return fmt.Errorf("failed to communicate with caddy admin API at %s: %w. Ensure Caddy is installed (sudo apt install -y caddy) and service is running", c.adminURL, lastErr)
 }
