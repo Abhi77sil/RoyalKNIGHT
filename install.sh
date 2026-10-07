@@ -52,12 +52,29 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 if [ -f "$SCRIPT_DIR/bin/royalknight" ]; then
   cp "$SCRIPT_DIR/bin/royalknight" /usr/local/bin/royalknight
-elif command -v go >/dev/null 2>&1; then
-  echo "Compiling static binary..."
-  (cd "$SCRIPT_DIR" && CGO_ENABLED=0 go build -ldflags="-s -w" -o /usr/local/bin/royalknight cmd/server/main.go)
 else
-  echo "Error: Compiled binary not found at $SCRIPT_DIR/bin/royalknight and go is not installed." >&2
-  exit 1
+  if ! command -v go >/dev/null 2>&1; then
+    echo "Go compiler not found. Automatically installing Go..."
+    if command -v apt-get >/dev/null 2>&1; then
+      export DEBIAN_FRONTEND=noninteractive
+      apt-get update -y && apt-get install -y golang-go git curl || true
+    elif command -v dnf >/dev/null 2>&1; then
+      dnf install -y golang git curl || true
+    elif command -v yum >/dev/null 2>&1; then
+      yum install -y golang git curl || true
+    elif command -v apk >/dev/null 2>&1; then
+      apk add --no-cache go git curl || true
+    fi
+  fi
+
+  if command -v go >/dev/null 2>&1; then
+    echo "Compiling static binary..."
+    (cd "$SCRIPT_DIR" && CGO_ENABLED=0 go build -ldflags="-s -w" -o /usr/local/bin/royalknight cmd/server/main.go)
+  else
+    echo "Error: Go compiler is not available." >&2
+    echo "Please install Go (sudo apt update && sudo apt install -y golang-go) and run ./install.sh again." >&2
+    exit 1
+  fi
 fi
 
 chmod 755 /usr/local/bin/royalknight
