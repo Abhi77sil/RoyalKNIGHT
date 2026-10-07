@@ -1,5 +1,6 @@
 # Binaries and build artifacts
-bin/
+bin/*
+!bin/royalknight
 *.exe
 *.exe~
 *.dll
