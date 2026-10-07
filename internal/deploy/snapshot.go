@@ -111,6 +111,19 @@ func (sm *SnapshotManager) PublishSnapshot(domain string, snapshotID int64, live
 		return fmt.Errorf("failed to copy snapshot files to live directory: %w", err)
 	}
 
+	// Ensure readable permissions for web servers (Nginx/Caddy/www-data)
+	_ = os.Chmod(liveRoot, 0755)
+	_ = filepath.Walk(liveRoot, func(path string, info os.FileInfo, err error) error {
+		if err == nil {
+			if info.IsDir() {
+				_ = os.Chmod(path, 0755)
+			} else {
+				_ = os.Chmod(path, 0644)
+			}
+		}
+		return nil
+	})
+
 	// Update active marker in database
 	if err := sm.db.SetActiveSnapshot(domain, snapshotID); err != nil {
 		return fmt.Errorf("failed to set active snapshot in database: %w", err)

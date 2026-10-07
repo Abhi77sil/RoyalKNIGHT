@@ -91,5 +91,44 @@ func ExtractZip(zipPath, targetDir string) error {
 		}
 	}
 
+	// Unwrap single top-level directory if entire archive is wrapped inside one folder
+	unwrapSingleDirectory(cleanTargetDir)
+
+	// Ensure parent and target directories have execute/read permissions (0755)
+	_ = os.Chmod(filepath.Dir(cleanTargetDir), 0755)
+	_ = os.Chmod(cleanTargetDir, 0755)
+
+	// Enforce world-readable permissions for web servers (Nginx/Caddy)
+	_ = filepath.Walk(cleanTargetDir, func(path string, info os.FileInfo, err error) error {
+		if err == nil {
+			if info.IsDir() {
+				_ = os.Chmod(path, 0755)
+			} else {
+				_ = os.Chmod(path, 0644)
+			}
+		}
+		return nil
+	})
+
 	return nil
+}
+
+func unwrapSingleDirectory(targetDir string) {
+	entries, err := os.ReadDir(targetDir)
+	if err != nil || len(entries) != 1 || !entries[0].IsDir() {
+		return
+	}
+
+	singleDir := filepath.Join(targetDir, entries[0].Name())
+	subEntries, err := os.ReadDir(singleDir)
+	if err != nil {
+		return
+	}
+
+	for _, sub := range subEntries {
+		src := filepath.Join(singleDir, sub.Name())
+		dest := filepath.Join(targetDir, sub.Name())
+		_ = os.Rename(src, dest)
+	}
+	_ = os.Remove(singleDir)
 }
