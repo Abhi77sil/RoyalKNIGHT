@@ -84,14 +84,18 @@
 
         <section class="card">
           <div class="card-header">
-            <h2>Web Server Engine: Nginx</h2>
-            <span class="badge badge-success" id="switchStatusText">Engine: Nginx</span>
+            <div style="display:flex; align-items:center; gap:10px;">
+              <h2>Web Server Engine: Nginx</h2>
+              <span class="live-indicator-dot" title="Active"></span>
+            </div>
+            <span class="badge badge-success" id="switchStatusText">Engine: Nginx (Active)</span>
           </div>
           <p class="description">
             Dedicated Nginx engine handling HTTP-01 Let's Encrypt challenges and low-RAM static routing.
           </p>
           <div class="engine-actions">
-            <button id="reloadNginxBtn" class="btn btn-secondary">Reload Nginx Config</button>
+            <button id="reloadNginxBtn" class="btn btn-secondary">Reload Config</button>
+            <button id="testNginxBtn" class="btn btn-secondary">Test Syntax (nginx -t)</button>
           </div>
           <div id="switchAlert" class="alert" style="display:none;"></div>
         </section>
@@ -112,7 +116,7 @@
             <div class="form-group form-check">
               <label>
                 <input type="checkbox" id="sslCheckbox" checked />
-                Automatic SSL/TLS Certificate
+                Automatic SSL/TLS Certificate (Let's Encrypt)
               </label>
             </div>
             <div class="form-actions">
@@ -127,7 +131,14 @@
 
         <section class="card">
           <div class="card-header">
-            <h2>Deployed Sites</h2>
+            <div style="display:flex; align-items:center; gap:12px;">
+              <h2>Deployed Sites</h2>
+              <span class="badge" id="siteCountBadge">0 sites</span>
+            </div>
+            <div style="display:flex; gap:8px; align-items:center;">
+              <input type="text" id="siteSearchInput" placeholder="Search domain..." class="form-input-sm" style="min-width:180px;" />
+              <button id="refreshSitesBtn" class="btn btn-secondary btn-sm">Refresh</button>
+            </div>
           </div>
           <table class="table" id="sitesTable">
             <thead>
@@ -135,7 +146,7 @@
                 <th>Domain</th>
                 <th>Active Version</th>
                 <th>Document Root</th>
-                <th>SSL</th>
+                <th>SSL Status</th>
                 <th>Status</th>
                 <th>Created</th>
                 <th>Actions</th>
@@ -421,6 +432,39 @@
             </tbody>
           </table>
         </section>
+      </div>
+
+      <!-- Nginx Config Viewer Modal -->
+      <div id="configModal" class="modal" style="display:none;">
+        <div class="modal-content" style="max-width:750px;">
+          <div class="modal-header">
+            <h3 id="configModalTitle">Nginx Virtual Host Configuration</h3>
+            <button id="closeConfigModalBtn" class="btn btn-secondary btn-sm">&times;</button>
+          </div>
+          <div class="modal-body">
+            <pre id="configModalContent" class="code-block"></pre>
+          </div>
+          <div class="modal-footer" style="display:flex; justify-content:space-between; padding-top:12px;">
+            <button id="copyConfigBtn" class="btn btn-secondary btn-sm">Copy Configuration</button>
+            <button id="closeConfigModalBtn2" class="btn btn-secondary btn-sm">Close</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- DNS Inspector Modal -->
+      <div id="dnsModal" class="modal" style="display:none;">
+        <div class="modal-content" style="max-width:550px;">
+          <div class="modal-header">
+            <h3 id="dnsModalTitle">DNS Propagation &amp; SSL Readiness</h3>
+            <button id="closeDnsModalBtn" class="btn btn-secondary btn-sm">&times;</button>
+          </div>
+          <div class="modal-body" id="dnsModalBody">
+            <p class="text-muted">Probing DNS A record resolution for domain...</p>
+          </div>
+          <div class="modal-footer" style="padding-top:12px; display:flex; justify-content:flex-end;">
+            <button id="closeDnsModalBtn2" class="btn btn-secondary btn-sm">Close</button>
+          </div>
+        </div>
       </div>
     </main>
   </div>

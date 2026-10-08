@@ -349,64 +349,90 @@ textarea:focus {
 .btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   padding: 6px 14px;
-  border-radius: 4px;
+  border-radius: 6px;
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
   border: 1px solid transparent;
   font-family: inherit;
-  transition: background 0.1s ease;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  user-select: none;
+}
+
+.btn:active:not(:disabled) {
+  transform: scale(0.97);
 }
 
 .btn-primary {
-  background: var(--primary);
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  border-color: #3b82f6;
   color: #ffffff;
+  box-shadow: 0 2px 4px rgba(37, 99, 235, 0.25);
 }
 
-.btn-primary:hover {
-  background: var(--primary-hover);
+.btn-primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  box-shadow: 0 4px 8px rgba(37, 99, 235, 0.35);
+  transform: translateY(-1px);
 }
 
 .btn-secondary {
-  background: #21262d;
-  border-color: var(--border-color);
-  color: var(--text-main);
+  background: #1e293b;
+  border-color: #334155;
+  color: #e2e8f0;
 }
 
-.btn-secondary:hover {
-  background: #30363d;
+.btn-secondary:hover:not(:disabled) {
+  background: #334155;
+  border-color: #475569;
+  color: #ffffff;
+  transform: translateY(-1px);
 }
 
 .btn-accent {
-  background: var(--accent);
+  background: linear-gradient(135deg, #0ea5e9, #0284c7);
+  border-color: #38bdf8;
   color: #ffffff;
+  box-shadow: 0 2px 4px rgba(14, 165, 233, 0.25);
 }
 
-.btn-accent:hover {
-  background: var(--accent-hover);
+.btn-accent:hover:not(:disabled) {
+  background: linear-gradient(135deg, #38bdf8, #0ea5e9);
+  box-shadow: 0 4px 8px rgba(14, 165, 233, 0.35);
+  transform: translateY(-1px);
 }
 
 .btn-danger {
-  background: transparent;
-  border-color: #5c1d1d;
-  color: #f85149;
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #f87171;
 }
 
-.btn-danger:hover {
-  background: #5c1d1d;
+.btn-danger:hover:not(:disabled) {
+  background: #dc2626;
+  border-color: #ef4444;
   color: #ffffff;
+  transform: translateY(-1px);
 }
 
 .btn-sm {
-  padding: 4px 8px;
+  padding: 4px 10px;
   font-size: 11px;
+}
+
+.btn-xs {
+  padding: 3px 8px;
+  font-size: 11px;
+  border-radius: 4px;
 }
 
 .btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+  transform: none !important;
 }
 
 .table {
@@ -670,4 +696,85 @@ textarea:focus {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 12px;
+}
+
+.modal {
+  animation: fadeIn 0.15s ease-out;
+}
+
+.modal-content {
+  animation: modalPop 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
+}
+
+@keyframes modalPop {
+  from { opacity: 0; transform: scale(0.95) translateY(-8px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Live Indicator Dot */
+.live-indicator-dot {
+  width: 8px;
+  height: 8px;
+  background-color: #10b981;
+  border-radius: 50%;
+  display: inline-block;
+  box-shadow: 0 0 8px #10b981;
+  animation: pulseDot 2s infinite ease-in-out;
+}
+
+@keyframes pulseDot {
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+  70% { transform: scale(1.1); box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+
+/* Domain External Link */
+.domain-external-link {
+  color: #60a5fa;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: color 0.15s ease, transform 0.15s ease;
+}
+
+.domain-external-link:hover {
+  color: #93c5fd;
+  text-decoration: underline;
+  transform: translateX(1px);
+}
+
+.ext-icon {
+  font-size: 11px;
+  opacity: 0.8;
+}
+
+/* Code block viewer */
+.code-block {
+  background: #090d16;
+  border: 1px solid #1e293b;
+  border-radius: 6px;
+  padding: 12px;
+  font-family: var(--code-font);
+  font-size: 12px;
+  color: #e2e8f0;
+  max-height: 400px;
+  overflow: auto;
+  white-space: pre;
+  line-height: 1.5;
+}
+
+/* Card hover subtle transition */
+.card {
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card:hover {
+  border-color: rgba(255, 255, 255, 0.12);
 }

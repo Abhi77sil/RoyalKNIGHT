@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"html/template"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -90,11 +91,14 @@ func (s *Server) Routes() http.Handler {
 	protected.HandleFunc("GET /api/sites", s.handleListSites)
 	protected.HandleFunc("POST /api/sites/upload", s.handleUploadSite)
 	protected.HandleFunc("POST /api/sites/{domain}/ssl", s.handleIssueSSL)
+	protected.HandleFunc("GET /api/sites/{domain}/config", s.handleGetSiteConfig)
+	protected.HandleFunc("GET /api/sites/{domain}/dns-check", s.handleDomainDNSCheck)
 	protected.HandleFunc("DELETE /api/sites/{domain}", s.handleDeleteSite)
 
 	protected.HandleFunc("GET /api/server/status", s.handleServerStatus)
 	protected.HandleFunc("POST /api/server/switch", s.handleServerSwitch)
 	protected.HandleFunc("POST /api/server/reload", s.handleServerReload)
+	protected.HandleFunc("POST /api/server/test", s.handleServerTest)
 
 	protected.HandleFunc("GET /api/certificates", s.handleListCertificates)
 	protected.HandleFunc("GET /api/logs", s.handleListLogs)
@@ -396,6 +400,66 @@ func (s *Server) handleServerReload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "reloaded", "engine": "nginx"})
+}
+
+func (s *Server) handleServerTest(w http.ResponseWriter, r *http.Request) {
+	adp, err := s.orchestrator.GetActiveAdapter()
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	if err := adp.TestConfig(); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"status": "error", "message": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "message": "Nginx configuration syntax is valid (nginx -t syntax ok)"})
+}
+
+func (s *Server) handleGetSiteConfig(w http.ResponseWriter, r *http.Request) {
+	domain := r.PathValue("domain")
+	if domain == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "domain is required"})
+		return
+	}
+
+	confPath := filepath.Join("/etc/nginx/sites-available", fmt.Sprintf("%s.conf", domain))
+	content, err := os.ReadFile(confPath)
+	if err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": fmt.Sprintf("configuration file not found for %s: %v", domain, err)})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{"domain": domain, "config": string(content)})
+}
+
+func (s *Server) handleDomainDNSCheck(w http.ResponseWriter, r *http.Request) {
+	domain := r.PathValue("domain")
+	if domain == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "domain is required"})
+		return
+	}
+
+	serverIP := s.ipResolver.GetNetworkInfo().IPv4
+	ips, err := net.LookupIP(domain)
+	var resolved []string
+	matches := false
+	if err == nil {
+		for _, ip := range ips {
+			str := ip.String()
+			resolved = append(resolved, str)
+			if str == serverIP {
+				matches = true
+			}
+		}
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"domain":        domain,
+		"server_ip":     serverIP,
+		"resolved_ips":  resolved,
+		"matches":       matches,
+		"ready_for_ssl": matches,
+	})
 }
 
 func (s *Server) handleServerSwitch(w http.ResponseWriter, r *http.Request) {

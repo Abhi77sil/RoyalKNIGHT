@@ -20,6 +20,9 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   document.getElementById('reloadNginxBtn')?.addEventListener('click', reloadNginx);
+  document.getElementById('testNginxBtn')?.addEventListener('click', testNginxSyntax);
+  document.getElementById('refreshSitesBtn')?.addEventListener('click', loadSites);
+  document.getElementById('siteSearchInput')?.addEventListener('input', (e) => filterSites(e.target.value));
   document.getElementById('deployForm').addEventListener('submit', handleDeploy);
 
   // Health probe events
@@ -60,6 +63,26 @@ document.addEventListener('DOMContentLoaded', () => {
   // Image preview modal
   document.getElementById('closeImagePreviewBtn').addEventListener('click', () => {
     document.getElementById('imagePreviewModal').style.display = 'none';
+  });
+
+  // Config modal
+  document.getElementById('closeConfigModalBtn')?.addEventListener('click', () => {
+    document.getElementById('configModal').style.display = 'none';
+  });
+  document.getElementById('closeConfigModalBtn2')?.addEventListener('click', () => {
+    document.getElementById('configModal').style.display = 'none';
+  });
+  document.getElementById('copyConfigBtn')?.addEventListener('click', () => {
+    const el = document.getElementById('configModalContent');
+    if (el) copyTextValue(el.innerText, 'copyConfigBtn');
+  });
+
+  // DNS modal
+  document.getElementById('closeDnsModalBtn')?.addEventListener('click', () => {
+    document.getElementById('dnsModal').style.display = 'none';
+  });
+  document.getElementById('closeDnsModalBtn2')?.addEventListener('click', () => {
+    document.getElementById('dnsModal').style.display = 'none';
   });
 
   // Editor events
@@ -239,6 +262,33 @@ async function reloadNginx() {
   }
 }
 
+async function testNginxSyntax() {
+  const alertEl = document.getElementById('switchAlert');
+  alertEl.style.display = 'none';
+  const btn = document.getElementById('testNginxBtn');
+  if (btn) btn.disabled = true;
+
+  try {
+    const res = await fetch('/api/server/test', { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) {
+      alertEl.className = 'alert alert-danger';
+      alertEl.innerText = data.message || data.error || 'Nginx syntax test failed';
+      alertEl.style.display = 'block';
+    } else {
+      alertEl.className = 'alert alert-success';
+      alertEl.innerText = data.message || 'Nginx configuration syntax is valid';
+      alertEl.style.display = 'block';
+    }
+  } catch (err) {
+    alertEl.className = 'alert alert-danger';
+    alertEl.innerText = 'Network error during syntax check';
+    alertEl.style.display = 'block';
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
 async function handleDeploy(e) {
   e.preventDefault();
   const alertEl = document.getElementById('deployAlert');
@@ -292,46 +342,141 @@ async function handleDeploy(e) {
 }
 
 async function loadSites() {
-  const tbody = document.getElementById('sitesTableBody');
   try {
     const res = await fetch('/api/sites');
     if (!res.ok) return;
     cachedSites = await res.json();
-
     updateDomainSelects(cachedSites);
 
-    if (!cachedSites || cachedSites.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="7" class="text-muted">No sites configured</td></tr>';
+    const q = document.getElementById('siteSearchInput')?.value || '';
+    if (q) {
+      filterSites(q);
+    } else {
+      renderSitesTable(cachedSites);
+    }
+  } catch (err) {
+    const tbody = document.getElementById('sitesTableBody');
+    if (tbody) tbody.innerHTML = '<tr><td colspan="7" class="text-muted">Failed to load sites</td></tr>';
+  }
+}
+
+function filterSites(query) {
+  const q = (query || '').trim().toLowerCase();
+  const filtered = !q ? cachedSites : cachedSites.filter(s => s.domain.toLowerCase().includes(q));
+  renderSitesTable(filtered);
+}
+
+function renderSitesTable(sites) {
+  const tbody = document.getElementById('sitesTableBody');
+  const countBadge = document.getElementById('siteCountBadge');
+  if (countBadge) countBadge.innerText = `${(sites || []).length} sites`;
+
+  if (!sites || sites.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" class="text-muted">No sites found</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = sites.map(s => {
+    const isCustomVersion = s.active_version && s.active_version !== 'live/baseline';
+    const versionBadge = isCustomVersion
+      ? `<span class="badge badge-live" title="Active live version image">${escapeHtml(s.active_version)}</span>`
+      : `<span class="badge" title="Default root files">${escapeHtml(s.active_version || 'live/baseline')}</span>`;
+
+    const proto = s.ssl_enabled ? 'https' : 'http';
+    const domainLink = `<a href="${proto}://${escapeHtml(s.domain)}" target="_blank" rel="noopener noreferrer" class="domain-external-link" title="Open live site"><strong>${escapeHtml(s.domain)}</strong> ↗</a>`;
+
+    const sslStatus = s.ssl_enabled
+      ? `<span class="badge badge-success" title="Trusted Let's Encrypt SSL Active">✓ SSL Active</span>`
+      : `<button onclick="issueSSLForDomain('${escapeHtml(s.domain)}')" class="btn btn-accent btn-xs" title="Issue Let's Encrypt Certificate">⚡ Issue SSL</button>`;
+
+    return `
+      <tr>
+        <td>${domainLink}</td>
+        <td>${versionBadge}</td>
+        <td><code>${escapeHtml(s.root_path)}</code></td>
+        <td>${sslStatus}</td>
+        <td><span class="badge badge-success">${escapeHtml(s.status)}</span></td>
+        <td>${new Date(s.created_at).toLocaleDateString()}</td>
+        <td>
+          <div style="display:flex; gap:4px; align-items:center; flex-wrap:wrap;">
+            <button onclick="checkSiteDNS('${escapeHtml(s.domain)}')" class="btn btn-secondary btn-xs" title="Verify DNS A record points to this server">DNS</button>
+            <button onclick="viewSiteConfig('${escapeHtml(s.domain)}')" class="btn btn-secondary btn-xs" title="View active Nginx virtual host configuration">Config</button>
+            <button onclick="openVersionsForDomain('${escapeHtml(s.domain)}')" class="btn btn-secondary btn-xs" title="Manage site versions & snapshots">Versions</button>
+            <button onclick="openFilesForDomain('${escapeHtml(s.domain)}')" class="btn btn-secondary btn-xs" title="Open file manager & editor">Files</button>
+            <button onclick="deleteSite('${escapeHtml(s.domain)}')" class="btn btn-danger btn-xs" title="Delete site">Delete</button>
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+async function viewSiteConfig(domain) {
+  try {
+    const res = await fetch(`/api/sites/${encodeURIComponent(domain)}/config`);
+    const data = await res.json();
+    if (!res.ok) {
+      alert(`Error fetching config: ${data.error || 'Failed'}`);
+      return;
+    }
+    document.getElementById('configModalTitle').innerText = `Nginx Config: ${domain}`;
+    document.getElementById('configModalContent').innerText = data.config;
+    document.getElementById('configModal').style.display = 'block';
+  } catch (err) {
+    alert(`Network error: ${err.message}`);
+  }
+}
+
+async function checkSiteDNS(domain) {
+  const modal = document.getElementById('dnsModal');
+  const body = document.getElementById('dnsModalBody');
+  document.getElementById('dnsModalTitle').innerText = `DNS Inspection: ${domain}`;
+  body.innerHTML = `<p class="text-muted">Querying DNS records for <strong>${escapeHtml(domain)}</strong>...</p>`;
+  modal.style.display = 'block';
+
+  try {
+    const res = await fetch(`/api/sites/${encodeURIComponent(domain)}/dns-check`);
+    const data = await res.json();
+    if (!res.ok) {
+      body.innerHTML = `<div class="alert alert-danger">${escapeHtml(data.error || 'DNS check failed')}</div>`;
       return;
     }
 
-    tbody.innerHTML = cachedSites.map(s => {
-      const isCustomVersion = s.active_version && s.active_version !== 'live/baseline';
-      const versionBadge = isCustomVersion
-        ? `<span class="badge badge-live" title="Active live version image">${escapeHtml(s.active_version)}</span>`
-        : `<span class="badge" title="Default root files">${escapeHtml(s.active_version || 'live/baseline')}</span>`;
+    const ips = (data.resolved_ips && data.resolved_ips.length > 0)
+      ? data.resolved_ips.map(ip => `<code>${escapeHtml(ip)}</code>`).join(', ')
+      : '<span class="text-muted">None resolved</span>';
 
-      return `
-        <tr>
-          <td><strong>${escapeHtml(s.domain)}</strong></td>
-          <td>${versionBadge}</td>
-          <td><code>${escapeHtml(s.root_path)}</code></td>
-          <td>${s.ssl_enabled ? '<span class="badge badge-success">Enabled</span>' : '<span class="text-muted">Off</span>'}</td>
-          <td><span class="badge badge-success">${escapeHtml(s.status)}</span></td>
-          <td>${new Date(s.created_at).toLocaleDateString()}</td>
-          <td>
-            <div style="display:flex; gap:4px; align-items:center;">
-              <button onclick="issueSSLForDomain('${escapeHtml(s.domain)}')" class="btn btn-secondary btn-xs" title="Issue or Renew Let's Encrypt SSL certificate">SSL</button>
-              <button onclick="openVersionsForDomain('${escapeHtml(s.domain)}')" class="btn btn-secondary btn-xs" title="Manage site images & versions">Versions</button>
-              <button onclick="openFilesForDomain('${escapeHtml(s.domain)}')" class="btn btn-secondary btn-xs" title="Open file manager">Files</button>
-              <button onclick="deleteSite('${escapeHtml(s.domain)}')" class="btn btn-danger btn-xs" title="Delete site">Delete</button>
-            </div>
-          </td>
-        </tr>
-      `;
-    }).join('');
+    const matchBadge = data.matches
+      ? `<span class="badge badge-success">✓ Ready for SSL (Points to Server)</span>`
+      : `<span class="badge badge-failed">✗ Not Pointing to VPS IP</span>`;
+
+    body.innerHTML = `
+      <div style="display:flex; flex-direction:column; gap:10px;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <span>Target VPS IPv4:</span>
+          <code>${escapeHtml(data.server_ip || '127.0.0.1')}</code>
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <span>Domain Resolved IPs:</span>
+          <div>${ips}</div>
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px;">
+          <span>Status:</span>
+          <div>${matchBadge}</div>
+        </div>
+        ${data.matches ? `
+          <div class="alert alert-success" style="margin-top:8px;">
+            DNS is fully configured! You can issue a trusted Let's Encrypt SSL certificate.
+          </div>
+        ` : `
+          <div class="alert alert-warning" style="margin-top:8px;">
+            Add an <strong>A Record</strong> at your domain DNS provider pointing <code>${escapeHtml(domain)}</code> to <code>${escapeHtml(data.server_ip || '')}</code> before issuing SSL.
+          </div>
+        `}
+      </div>
+    `;
   } catch (err) {
-    tbody.innerHTML = '<tr><td colspan="7" class="text-muted">Failed to load sites</td></tr>';
+    body.innerHTML = `<div class="alert alert-danger">Network error inspecting DNS: ${escapeHtml(err.message)}</div>`;
   }
 }
 
