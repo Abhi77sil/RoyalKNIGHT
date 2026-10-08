@@ -18,7 +18,7 @@ import (
 const nginxUnifiedTemplate = `server {
     listen 80;
     listen [::]:80;
-    server_name {{.Domain}};
+    server_name {{.Domain}} www.{{.Domain}};
 
     # Let's Encrypt ACME HTTP-01 challenge
     location ^~ /.well-known/acme-challenge/ {
@@ -36,7 +36,7 @@ const nginxUnifiedTemplate = `server {
 server {
     listen 443 ssl http2;
     listen [::]:443 ssl http2;
-    server_name {{.Domain}};
+    server_name {{.Domain}} www.{{.Domain}};
 
     root {{.RootPath}};
     index index.html index.htm index.php default.html;
@@ -45,8 +45,14 @@ server {
     ssl_certificate_key {{.KeyPath}};
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_ciphers HIGH:!aNULL:!MD5;
-    ssl_session_cache shared:SSL:2m;
-    ssl_session_timeout 10m;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 1d;
+
+    # HSTS & Security Headers (Eliminates "Not Secure" browser flags)
+    add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload" always;
+    add_header X-Content-Type-Options nosniff always;
+    add_header X-Frame-Options SAMEORIGIN always;
+    add_header X-XSS-Protection "1; mode=block" always;
 
     # Low-RAM performance optimizations
     sendfile on;
@@ -165,6 +171,19 @@ func (n *NginxAdapter) ProvisionSSL(domain string) error {
 	enabledPath := filepath.Join(n.enabledDir, confName)
 
 	rootPath := filepath.Join("/var/www", domain)
+	if existingData, err := os.ReadFile(availablePath); err == nil {
+		lines := strings.Split(string(existingData), "\n")
+		for _, line := range lines {
+			trimmed := strings.TrimSpace(line)
+			if strings.HasPrefix(trimmed, "root ") && strings.HasSuffix(trimmed, ";") {
+				p := strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(trimmed, "root "), ";"))
+				if p != "" && p != "/var/www/certbot" {
+					rootPath = p
+					break
+				}
+			}
+		}
+	}
 
 	var buf bytes.Buffer
 	data := struct {

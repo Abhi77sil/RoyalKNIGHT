@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -106,16 +107,31 @@ func (m *Manager) ProvisionLetsEncrypt(domain string) (*storage.Certificate, err
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
 
-	// 1. Attempt Webroot verification
-	cmd := exec.CommandContext(ctx, certbotPath, "certonly",
+	// Resolve whether www subdomain also points to this server to include in the certificate
+	targetDomains := []string{domain}
+	if !strings.HasPrefix(domain, "www.") {
+		www := "www." + domain
+		if ips, err := net.LookupIP(www); err == nil && len(ips) > 0 {
+			targetDomains = append(targetDomains, www)
+		}
+	}
+
+	webrootArgs := []string{
+		"certonly",
 		"--webroot",
 		"-w", ACMEWebrootPath,
-		"-d", domain,
+		"--preferred-challenges", "http",
 		"--non-interactive",
 		"--agree-tos",
 		"--register-unsafely-without-email",
 		"--keep-until-expiring",
-	)
+	}
+	for _, d := range targetDomains {
+		webrootArgs = append(webrootArgs, "-d", d)
+	}
+
+	// 1. Attempt Webroot verification
+	cmd := exec.CommandContext(ctx, certbotPath, webrootArgs...)
 
 	var output bytes.Buffer
 	cmd.Stdout = &output
@@ -125,15 +141,21 @@ func (m *Manager) ProvisionLetsEncrypt(domain string) (*storage.Certificate, err
 	if runErr != nil {
 		log.Printf("[SSL] Certbot webroot challenge failed for %s (%v). Attempting --nginx plugin...", domain, runErr)
 
-		// 2. Fallback to --nginx plugin
-		cmdNginx := exec.CommandContext(ctx, certbotPath, "certonly",
+		nginxArgs := []string{
+			"certonly",
 			"--nginx",
-			"-d", domain,
+			"--preferred-challenges", "http",
 			"--non-interactive",
 			"--agree-tos",
 			"--register-unsafely-without-email",
 			"--keep-until-expiring",
-		)
+		}
+		for _, d := range targetDomains {
+			nginxArgs = append(nginxArgs, "-d", d)
+		}
+
+		// 2. Fallback to --nginx plugin
+		cmdNginx := exec.CommandContext(ctx, certbotPath, nginxArgs...)
 		var outputNginx bytes.Buffer
 		cmdNginx.Stdout = &outputNginx
 		cmdNginx.Stderr = &outputNginx

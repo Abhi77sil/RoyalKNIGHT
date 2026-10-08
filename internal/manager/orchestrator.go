@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"sync"
+	"time"
 
 	"royalknight/internal/adapter"
 	"royalknight/internal/storage"
@@ -72,7 +73,8 @@ func (o *Orchestrator) DeploySite(domain, rootPath string, sslEnabled bool) (*st
 
 	if sslEnabled {
 		go func() {
-			if err := o.adapter.ProvisionSSL(domain); err != nil {
+			time.Sleep(1 * time.Second)
+			if err := o.ProvisionSSL(domain); err != nil {
 				log.Printf("[SSL] Background Let's Encrypt issuance for %s: %v", domain, err)
 			}
 		}()

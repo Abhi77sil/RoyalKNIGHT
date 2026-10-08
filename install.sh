@@ -159,6 +159,8 @@ chmod 700 /etc/ssl/royalknight/private
 
 # Global default server block to immediately handle ACME HTTP-01 challenges on port 80
 cat << 'EOF' > /etc/nginx/conf.d/00-acme.conf
+server_names_hash_bucket_size 64;
+
 server {
     listen 80 default_server;
     listen [::]:80 default_server;
