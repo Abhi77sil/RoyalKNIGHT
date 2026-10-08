@@ -17,12 +17,16 @@ import (
 
 const nginxUnifiedTemplate = `server {
     listen 80;
+    listen [::]:80;
     server_name {{.Domain}};
 
     # Let's Encrypt ACME HTTP-01 challenge
-    location /.well-known/acme-challenge/ {
+    location ^~ /.well-known/acme-challenge/ {
+        default_type "text/plain";
         root /var/www/certbot;
+        allow all;
     }
+
 {{if .SSLEnabled}}
     location / {
         return 301 https://$host$request_uri;
@@ -30,7 +34,8 @@ const nginxUnifiedTemplate = `server {
 }
 
 server {
-    listen 443 ssl;
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
     server_name {{.Domain}};
 
     root {{.RootPath}};
@@ -62,7 +67,7 @@ server {
     gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript image/svg+xml;
 
     location / {
-        try_files $uri $uri/ =404;
+        try_files $uri $uri/ /index.html =404;
         autoindex on;
     }
 }
@@ -89,7 +94,7 @@ server {
     gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript image/svg+xml;
 
     location / {
-        try_files $uri $uri/ =404;
+        try_files $uri $uri/ /index.html =404;
         autoindex on;
     }
 }
@@ -148,18 +153,19 @@ func (n *NginxAdapter) ProvisionSSL(domain string) error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 
-	// 1. First ensure HTTP challenge server block is active so ACME can verify
+	// 1. Attempt official Let's Encrypt issuance
+	cert, err := n.sslManager.ProvisionLetsEncrypt(domain)
+	if err != nil {
+		return fmt.Errorf("Let's Encrypt certificate acquisition failed: %w", err)
+	}
+
+	// 2. Re-render template with real certificate enabled
 	confName := fmt.Sprintf("%s.conf", sanitizeDomainFilename(domain))
 	availablePath := filepath.Join(n.availableDir, confName)
 	enabledPath := filepath.Join(n.enabledDir, confName)
 
-	// Attempt real Let's Encrypt certificate acquisition
-	cert, err := n.sslManager.ProvisionLetsEncrypt(domain)
-	if err != nil {
-		return fmt.Errorf("let's encrypt issuance failed: %w", err)
-	}
+	rootPath := filepath.Join("/var/www", domain)
 
-	// Re-render template with new certificate
 	var buf bytes.Buffer
 	data := struct {
 		Domain     string
@@ -169,14 +175,14 @@ func (n *NginxAdapter) ProvisionSSL(domain string) error {
 		KeyPath    string
 	}{
 		Domain:     domain,
-		RootPath:   filepath.Join("/var/www", domain),
+		RootPath:   rootPath,
 		SSLEnabled: true,
 		CertPath:   cert.CertPath,
 		KeyPath:    cert.KeyPath,
 	}
 
 	if err := n.tmpl.Execute(&buf, data); err != nil {
-		return fmt.Errorf("failed to re-render nginx template: %w", err)
+		return fmt.Errorf("failed to render nginx template: %w", err)
 	}
 
 	if err := os.WriteFile(availablePath, buf.Bytes(), 0644); err != nil {
@@ -197,15 +203,15 @@ func (n *NginxAdapter) ApplyConfig(domain string, rootPath string, sslEnabled bo
 	n.mu.Lock()
 	defer n.mu.Unlock()
 
+	// Only enable HTTPS if a genuine, valid Let's Encrypt certificate exists on disk
+	hasValidSSL := false
 	var certPath, keyPath string
-	if sslEnabled {
-		cert, err := n.sslManager.EnsureCertificate(domain)
+	if sslEnabled && n.sslManager.HasValidCertificate(domain) {
+		cert, err := n.sslManager.GetCertificate(domain)
 		if err == nil && cert != nil {
 			certPath = cert.CertPath
 			keyPath = cert.KeyPath
-		} else {
-			// If certificate retrieval fails temporarily, fall back to HTTP-only to avoid breaking Nginx
-			sslEnabled = false
+			hasValidSSL = true
 		}
 	}
 
@@ -223,7 +229,7 @@ func (n *NginxAdapter) ApplyConfig(domain string, rootPath string, sslEnabled bo
 	}{
 		Domain:     domain,
 		RootPath:   rootPath,
-		SSLEnabled: sslEnabled,
+		SSLEnabled: hasValidSSL,
 		CertPath:   certPath,
 		KeyPath:    keyPath,
 	}
@@ -236,20 +242,17 @@ func (n *NginxAdapter) ApplyConfig(domain string, rootPath string, sslEnabled bo
 		return fmt.Errorf("failed to write nginx config %s: %w", availablePath, err)
 	}
 
-	// Create symlink in sites-enabled
 	_ = os.Remove(enabledPath)
 	if err := os.Symlink(availablePath, enabledPath); err != nil {
 		return fmt.Errorf("failed to symlink nginx config: %w", err)
 	}
 
-	// Validate config syntax
 	if err := n.TestConfig(); err != nil {
 		_ = os.Remove(enabledPath)
 		_ = os.Remove(availablePath)
 		return fmt.Errorf("nginx configuration test failed: %w", err)
 	}
 
-	// Reload or start Nginx
 	if err := ExecSystemctl("reload", "nginx"); err != nil {
 		_ = ExecSystemctl("start", "nginx")
 	}
