@@ -89,10 +89,12 @@ func (s *Server) Routes() http.Handler {
 
 	protected.HandleFunc("GET /api/sites", s.handleListSites)
 	protected.HandleFunc("POST /api/sites/upload", s.handleUploadSite)
+	protected.HandleFunc("POST /api/sites/{domain}/ssl", s.handleIssueSSL)
 	protected.HandleFunc("DELETE /api/sites/{domain}", s.handleDeleteSite)
 
 	protected.HandleFunc("GET /api/server/status", s.handleServerStatus)
 	protected.HandleFunc("POST /api/server/switch", s.handleServerSwitch)
+	protected.HandleFunc("POST /api/server/reload", s.handleServerReload)
 
 	protected.HandleFunc("GET /api/certificates", s.handleListCertificates)
 	protected.HandleFunc("GET /api/logs", s.handleListLogs)
@@ -373,6 +375,29 @@ func (s *Server) handleServerStatus(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (s *Server) handleIssueSSL(w http.ResponseWriter, r *http.Request) {
+	domain := r.PathValue("domain")
+	if domain == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "domain is required"})
+		return
+	}
+
+	if err := s.orchestrator.ProvisionSSL(domain); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": fmt.Sprintf("SSL issuance failed: %v", err)})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{"status": "issued", "domain": domain})
+}
+
+func (s *Server) handleServerReload(w http.ResponseWriter, r *http.Request) {
+	if err := s.orchestrator.ReloadServer(); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "reloaded", "engine": "nginx"})
+}
+
 func (s *Server) handleServerSwitch(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Target string `json:"target"`
@@ -383,8 +408,8 @@ func (s *Server) handleServerSwitch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	target := strings.ToLower(strings.TrimSpace(req.Target))
-	if target != "caddy" && target != "nginx" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "target must be 'caddy' or 'nginx'"})
+	if target != "nginx" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "engine is dedicated to nginx"})
 		return
 	}
 
@@ -394,8 +419,8 @@ func (s *Server) handleServerSwitch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
-		"status":        "switched",
-		"active_server": target,
+		"status":        "active",
+		"active_server": "nginx",
 	})
 }
 

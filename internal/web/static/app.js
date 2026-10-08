@@ -19,8 +19,7 @@ document.addEventListener('DOMContentLoaded', () => {
     window.location.href = '/login';
   });
 
-  document.getElementById('switchToCaddyBtn').addEventListener('click', () => switchEngine('caddy'));
-  document.getElementById('switchToNginxBtn').addEventListener('click', () => switchEngine('nginx'));
+  document.getElementById('reloadNginxBtn')?.addEventListener('click', reloadNginx);
   document.getElementById('deployForm').addEventListener('submit', handleDeploy);
 
   // Health probe events
@@ -203,45 +202,40 @@ async function loadServerStatus() {
     const res = await fetch('/api/server/status');
     if (!res.ok) return;
     const data = await res.json();
-    document.getElementById('headerEngineBadge').innerText = `Engine: ${data.active_server.toUpperCase()}`;
-    document.getElementById('switchStatusText').innerText = `State: ${data.state}`;
-
-    document.getElementById('switchToCaddyBtn').disabled = (data.active_server === 'caddy');
-    document.getElementById('switchToNginxBtn').disabled = (data.active_server === 'nginx');
+    const badge = document.getElementById('headerEngineBadge');
+    if (badge) badge.innerText = `Engine: NGINX`;
+    const st = document.getElementById('switchStatusText');
+    if (st) st.innerText = `Engine: NGINX (${data.state})`;
   } catch (err) {
     console.error('Failed to load server status', err);
   }
 }
 
-async function switchEngine(target) {
+async function reloadNginx() {
   const alertEl = document.getElementById('switchAlert');
   alertEl.style.display = 'none';
-  document.getElementById('switchToCaddyBtn').disabled = true;
-  document.getElementById('switchToNginxBtn').disabled = true;
+  const reloadBtn = document.getElementById('reloadNginxBtn');
+  if (reloadBtn) reloadBtn.disabled = true;
 
   try {
-    const res = await fetch('/api/server/switch', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ target })
-    });
+    const res = await fetch('/api/server/reload', { method: 'POST' });
     const data = await res.json();
     if (!res.ok) {
       alertEl.className = 'alert alert-danger';
-      alertEl.innerText = data.error || 'Server switch failed';
+      alertEl.innerText = data.error || 'Nginx reload failed';
       alertEl.style.display = 'block';
     } else {
       alertEl.className = 'alert alert-success';
-      alertEl.innerText = `Switched successfully to ${target.toUpperCase()}`;
+      alertEl.innerText = 'Nginx reloaded successfully';
       alertEl.style.display = 'block';
     }
   } catch (err) {
     alertEl.className = 'alert alert-danger';
-    alertEl.innerText = 'Network error during switch';
+    alertEl.innerText = 'Network error during reload';
     alertEl.style.display = 'block';
   } finally {
+    if (reloadBtn) reloadBtn.disabled = false;
     await loadServerStatus();
-    await loadLogs();
   }
 }
 
@@ -327,6 +321,7 @@ async function loadSites() {
           <td>${new Date(s.created_at).toLocaleDateString()}</td>
           <td>
             <div style="display:flex; gap:4px; align-items:center;">
+              <button onclick="issueSSLForDomain('${escapeHtml(s.domain)}')" class="btn btn-secondary btn-xs" title="Issue or Renew Let's Encrypt SSL certificate">SSL</button>
               <button onclick="openVersionsForDomain('${escapeHtml(s.domain)}')" class="btn btn-secondary btn-xs" title="Manage site images & versions">Versions</button>
               <button onclick="openFilesForDomain('${escapeHtml(s.domain)}')" class="btn btn-secondary btn-xs" title="Open file manager">Files</button>
               <button onclick="deleteSite('${escapeHtml(s.domain)}')" class="btn btn-danger btn-xs" title="Delete site">Delete</button>
@@ -337,6 +332,23 @@ async function loadSites() {
     }).join('');
   } catch (err) {
     tbody.innerHTML = '<tr><td colspan="7" class="text-muted">Failed to load sites</td></tr>';
+  }
+}
+
+async function issueSSLForDomain(domain) {
+  if (!confirm(`Request Let's Encrypt SSL certificate for ${domain}? Make sure your DNS A record points to this server.`)) return;
+  try {
+    const res = await fetch(`/api/sites/${encodeURIComponent(domain)}/ssl`, { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) {
+      alert(`SSL Issuance error: ${data.error || 'Failed'}`);
+    } else {
+      alert(`SSL Certificate successfully issued and installed for ${domain}!`);
+      loadSites();
+      loadCertificates();
+    }
+  } catch (err) {
+    alert(`Network error issuing SSL: ${err.message}`);
   }
 }
 

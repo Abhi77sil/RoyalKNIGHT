@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # RoyalKnight Control Panel - Installer
-# Target: Linux VPS (systemd-based)
+# Target: Linux VPS (systemd-based) - Nginx Dedicated Engine
 
 echo "============================================="
 echo "   RoyalKnight Control Panel Installation    "
@@ -41,77 +41,36 @@ SERVER_IP="${SERVER_IP:-127.0.0.1}"
 # 3. Create Required System Directories
 echo "[1/6] Setting up system directories..."
 mkdir -p /var/lib/royalknight/snapshots
-mkdir -p /var/www
+mkdir -p /var/www/certbot
+chmod 755 /var/www/certbot
 mkdir -p /etc/ssl/royalknight/certs
 mkdir -p /etc/ssl/royalknight/private
 chmod 700 /etc/ssl/royalknight/private
 
-# 4. Install Web Server Engines (Nginx & Caddy)
-echo "[2/6] Installing and optimizing web servers (Nginx & Caddy)..."
+# 4. Stop and Remove Caddy (Dedicated Nginx Engine)
+echo "[2/6] Configuring dedicated Nginx engine & Let's Encrypt Certbot..."
+systemctl stop caddy.service 2>/dev/null || true
+systemctl disable caddy.service 2>/dev/null || true
+pkill -9 -x caddy 2>/dev/null || true
+
 if command -v apt-get >/dev/null 2>&1; then
   export DEBIAN_FRONTEND=noninteractive
   apt-get update -qq
-  apt-get install -y -qq nginx curl ca-certificates tar
-
-  if ! command -v caddy >/dev/null 2>&1; then
-    echo "Installing Caddy repository..."
-    apt-get install -y -qq debian-keyring debian-archive-keyring apt-transport-https || true
-    curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg 2>/dev/null || true
-    curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | tee /etc/apt/sources.list.d/caddy-stable.list >/dev/null 2>&1 || true
-    apt-get update -qq && apt-get install -y -qq caddy || true
-  fi
+  apt-get install -y -qq nginx certbot python3-certbot-nginx curl ca-certificates tar
+elif command -v dnf >/dev/null 2>&1; then
+  dnf install -y -q nginx certbot python3-certbot-nginx curl ca-certificates tar
+elif command -v yum >/dev/null 2>&1; then
+  yum install -y -q epel-release || true
+  yum install -y -q nginx certbot python3-certbot-nginx curl ca-certificates tar
 fi
 
-# Fallback: install static Caddy binary if package repository not available
-if ! command -v caddy >/dev/null 2>&1; then
-  echo "Installing static Caddy binary..."
-  curl -fsSL "https://github.com/caddyserver/caddy/releases/download/v2.8.4/caddy_2.8.4_linux_amd64.tar.gz" -o /tmp/caddy.tar.gz 2>/dev/null && \
-    tar -xzf /tmp/caddy.tar.gz -C /usr/local/bin caddy && \
-    chmod +x /usr/local/bin/caddy && \
-    rm -f /tmp/caddy.tar.gz || true
-fi
-
-# Configure Nginx for low-RAM server optimization
+# Optimize Nginx for low-RAM server environments
 mkdir -p /etc/nginx/sites-available /etc/nginx/sites-enabled
 rm -f /etc/nginx/sites-enabled/default
 
-# Configure Caddy for low-RAM server optimization
-mkdir -p /etc/caddy
-if [ ! -f /etc/caddy/Caddyfile ]; then
-  cat << 'EOF' > /etc/caddy/Caddyfile
-{
-    admin 127.0.0.1:2019
-}
-EOF
-fi
-
-# Ensure Caddy systemd service exists and is enabled
-if ! systemctl list-unit-files 2>/dev/null | grep -q "caddy.service"; then
-  cat << 'EOF' > /etc/systemd/system/caddy.service
-[Unit]
-Description=Caddy Web Server
-After=network.target network-online.target
-Wants=network-online.target
-
-[Service]
-Type=notify
-User=root
-Group=root
-ExecStart=/usr/local/bin/caddy run --environ --config /etc/caddy/Caddyfile
-ExecReload=/usr/local/bin/caddy reload --config /etc/caddy/Caddyfile --force
-TimeoutStopSec=5s
-LimitNOFILE=65535
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-EOF
-  systemctl daemon-reload
-fi
-
-systemctl enable caddy.service 2>/dev/null || true
-systemctl start caddy.service 2>/dev/null || true
-systemctl stop nginx.service 2>/dev/null || true
+# Enable and start Nginx
+systemctl enable nginx.service 2>/dev/null || true
+systemctl restart nginx.service 2>/dev/null || true
 
 # 5. Binary Installation
 echo "[3/6] Installing binary to /usr/local/bin/royalknight..."
@@ -198,5 +157,6 @@ echo "============================================="
 echo "Panel URL: http://${SERVER_IP}:7777/admin"
 echo "Username:  ${ADMIN_USER}"
 echo "Password:  (hidden as configured)"
+echo "Engine:    Nginx (Port 80/443)"
 echo "Service:   systemctl status royalknight"
 echo "============================================="

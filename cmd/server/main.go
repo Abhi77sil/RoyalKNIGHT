@@ -26,7 +26,6 @@ func main() {
 	sitesDir := flag.String("sites-dir", "./data/www", "Base directory for hosted sites")
 	snapshotsDir := flag.String("snapshots-dir", "./data/snapshots", "Base directory for site snapshot images")
 	nginxDir := flag.String("nginx-dir", "/etc/nginx", "Base directory for Nginx configuration")
-	caddyURL := flag.String("caddy-url", "http://127.0.0.1:2019", "Caddy local admin API URL")
 	sslDir := flag.String("ssl-dir", "./data/ssl", "Base directory for SSL certificates")
 	adminUser := flag.String("admin-user", "admin", "Initial admin username")
 	adminPass := flag.String("admin-pass", "admin123456", "Initial admin password")
@@ -71,15 +70,14 @@ func main() {
 		log.Fatalf("[Init] Failed to initialize SSL manager: %v", err)
 	}
 
-	// 4. Initialize WebServer Adapters
-	caddyAdapter := adapter.NewCaddyAdapter(*caddyURL)
+	// 4. Initialize Nginx WebServer Adapter
 	nginxAdapter, err := adapter.NewNginxAdapter(*nginxDir, sslMgr)
 	if err != nil {
 		log.Printf("[Init] Note: Nginx directory setup: %v", err)
 	}
 
-	// 5. Initialize Server Orchestrator State Machine
-	orch, err := manager.NewOrchestrator(db, caddyAdapter, nginxAdapter)
+	// 5. Initialize Server Orchestrator (Nginx dedicated engine)
+	orch, err := manager.NewOrchestrator(db, nginxAdapter)
 	if err != nil {
 		log.Fatalf("[Init] Failed to initialize orchestrator: %v", err)
 	}

@@ -84,15 +84,14 @@
 
         <section class="card">
           <div class="card-header">
-            <h2>Web Server Engine</h2>
-            <span class="badge" id="switchStatusText">State: Idle</span>
+            <h2>Web Server Engine: Nginx</h2>
+            <span class="badge badge-success" id="switchStatusText">Engine: Nginx</span>
           </div>
           <p class="description">
-            Active web server handles port 80/443. Switching performs pre-configuration, verification, and automatic rollback on failure.
+            Dedicated Nginx engine handling HTTP-01 Let's Encrypt challenges and low-RAM static routing.
           </p>
           <div class="engine-actions">
-            <button id="switchToCaddyBtn" class="btn btn-secondary">Switch to Caddy</button>
-            <button id="switchToNginxBtn" class="btn btn-secondary">Switch to Nginx</button>
+            <button id="reloadNginxBtn" class="btn btn-secondary">Reload Nginx Config</button>
           </div>
           <div id="switchAlert" class="alert" style="display:none;"></div>
         </section>

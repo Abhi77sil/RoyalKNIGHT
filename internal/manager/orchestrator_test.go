@@ -1,11 +1,9 @@
 package manager
 
 import (
-	"errors"
 	"path/filepath"
 	"testing"
 
-	"royalknight/internal/adapter"
 	"royalknight/internal/storage"
 )
 
@@ -18,6 +16,7 @@ type mockAdapter struct {
 	startCount    int
 	stopCount     int
 	appliedRoutes map[string]string
+	provisioned   []string
 }
 
 func newMockAdapter(name string) *mockAdapter {
@@ -36,7 +35,7 @@ func (m *mockAdapter) Stop() error {
 	m.stopCount++
 	return m.stopErr
 }
-func (m *mockAdapter) ApplyConfig(domain, rootPath string) error {
+func (m *mockAdapter) ApplyConfig(domain, rootPath string, sslEnabled bool) error {
 	if m.applyErr != nil {
 		return m.applyErr
 	}
@@ -47,10 +46,13 @@ func (m *mockAdapter) RemoveConfig(domain string) error {
 	delete(m.appliedRoutes, domain)
 	return nil
 }
-func (m *mockAdapter) ProvisionSSL(domain string) error { return nil }
-func (m *mockAdapter) TestConfig() error                { return m.testErr }
+func (m *mockAdapter) ProvisionSSL(domain string) error {
+	m.provisioned = append(m.provisioned, domain)
+	return nil
+}
+func (m *mockAdapter) TestConfig() error { return m.testErr }
 
-func TestOrchestrator_SwitchSuccess(t *testing.T) {
+func TestOrchestrator_DeployAndManage(t *testing.T) {
 	tempDir := t.TempDir()
 	db, err := storage.Open(filepath.Join(tempDir, "test.db"))
 	if err != nil {
@@ -58,88 +60,47 @@ func TestOrchestrator_SwitchSuccess(t *testing.T) {
 	}
 	defer db.Close()
 
-	caddyMock := newMockAdapter("caddy")
 	nginxMock := newMockAdapter("nginx")
 
-	orch := &Orchestrator{
-		db: db,
-		adapters: map[string]adapter.WebServerAdapter{
-			"caddy": caddyMock,
-			"nginx": nginxMock,
-		},
-		activeServer: "caddy",
-		currentState: StateIdle,
-	}
-
-	_, _ = orch.DeploySite("site1.com", "/var/www/site1", true)
-
-	if err := orch.SwitchServer("nginx"); err != nil {
-		t.Fatalf("expected successful switch, got: %v", err)
+	orch, err := NewOrchestrator(db, nginxMock)
+	if err != nil {
+		t.Fatalf("NewOrchestrator failed: %v", err)
 	}
 
 	if orch.GetActiveServerName() != "nginx" {
 		t.Fatalf("expected active server nginx, got %s", orch.GetActiveServerName())
 	}
-	if caddyMock.stopCount != 1 {
-		t.Fatalf("expected caddy to be stopped once, got %d", caddyMock.stopCount)
+
+	site, err := orch.DeploySite("site1.com", "/var/www/site1", false)
+	if err != nil {
+		t.Fatalf("expected successful deploy, got: %v", err)
 	}
-	if nginxMock.startCount != 1 {
-		t.Fatalf("expected nginx to be started once, got %d", nginxMock.startCount)
+	if site.Domain != "site1.com" {
+		t.Fatalf("expected domain site1.com, got %s", site.Domain)
 	}
+
 	if _, ok := nginxMock.appliedRoutes["site1.com"]; !ok {
 		t.Fatal("expected site1.com route to be applied to nginx")
 	}
 
-	logs, err := db.ListSwitchLogs(1)
-	if err != nil || len(logs) == 0 || logs[0].Status != "SUCCESS" {
-		t.Fatalf("unexpected switch logs: %+v", logs)
+	if err := orch.ProvisionSSL("site1.com"); err != nil {
+		t.Fatalf("ProvisionSSL failed: %v", err)
 	}
-}
-
-func TestOrchestrator_SwitchFailureRollback(t *testing.T) {
-	tempDir := t.TempDir()
-	db, err := storage.Open(filepath.Join(tempDir, "test.db"))
-	if err != nil {
-		t.Fatalf("failed to open test db: %v", err)
-	}
-	defer db.Close()
-
-	caddyMock := newMockAdapter("caddy")
-	nginxMock := newMockAdapter("nginx")
-	nginxMock.startErr = errors.New("address already in use :80") // Simulate port bind error
-
-	orch := &Orchestrator{
-		db: db,
-		adapters: map[string]adapter.WebServerAdapter{
-			"caddy": caddyMock,
-			"nginx": nginxMock,
-		},
-		activeServer: "caddy",
-		currentState: StateIdle,
+	if len(nginxMock.provisioned) != 1 || nginxMock.provisioned[0] != "site1.com" {
+		t.Fatalf("expected site1.com provisioned, got %+v", nginxMock.provisioned)
 	}
 
-	_, _ = orch.DeploySite("site2.com", "/var/www/site2", true)
-
-	err = orch.SwitchServer("nginx")
-	if err == nil {
-		t.Fatal("expected switch to fail, but succeeded")
+	if err := orch.SwitchServer("nginx"); err != nil {
+		t.Fatalf("expected switch to nginx to succeed, got %v", err)
+	}
+	if err := orch.SwitchServer("caddy"); err == nil {
+		t.Fatal("expected switch to caddy to fail")
 	}
 
-	// Active server must remain caddy
-	if orch.GetActiveServerName() != "caddy" {
-		t.Fatalf("expected active server to remain caddy, got %s", orch.GetActiveServerName())
+	if err := orch.RemoveSite("site1.com"); err != nil {
+		t.Fatalf("expected RemoveSite to succeed, got %v", err)
 	}
-
-	// Original server caddy should have been restarted during rollback
-	if caddyMock.startCount != 1 {
-		t.Fatalf("expected caddy to be restarted during rollback, got %d", caddyMock.startCount)
-	}
-
-	logs, err := db.ListSwitchLogs(1)
-	if err != nil || len(logs) == 0 {
-		t.Fatalf("failed to query logs: %v", err)
-	}
-	if logs[0].Status != "ROLLED_BACK" {
-		t.Fatalf("expected log status ROLLED_BACK, got %s", logs[0].Status)
+	if _, ok := nginxMock.appliedRoutes["site1.com"]; ok {
+		t.Fatal("expected site1.com route to be removed from nginx")
 	}
 }

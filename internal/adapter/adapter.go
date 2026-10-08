@@ -12,7 +12,7 @@ type WebServerAdapter interface {
 	Name() string
 	Start() error
 	Stop() error
-	ApplyConfig(domain string, rootPath string) error
+	ApplyConfig(domain string, rootPath string, sslEnabled bool) error
 	RemoveConfig(domain string) error
 	ProvisionSSL(domain string) error
 	TestConfig() error

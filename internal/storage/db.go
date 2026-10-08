@@ -121,11 +121,11 @@ func (d *DB) migrate() error {
 		return err
 	}
 
-	// Default active server state to caddy if unset
+	// Default active server state to nginx if unset
 	var val string
 	err = d.db.QueryRow("SELECT value FROM server_state WHERE key = 'active_server'").Scan(&val)
 	if err == sql.ErrNoRows {
-		_, err = d.db.Exec("INSERT INTO server_state (key, value, updated_at) VALUES ('active_server', 'caddy', ?)", time.Now().UTC())
+		_, err = d.db.Exec("INSERT INTO server_state (key, value, updated_at) VALUES ('active_server', 'nginx', ?)", time.Now().UTC())
 	}
 	return err
 }
@@ -248,6 +248,12 @@ func (d *DB) ListSites() ([]Site, error) {
 
 func (d *DB) DeleteSite(domain string) error {
 	_, err := d.db.Exec("DELETE FROM sites WHERE domain = ?", domain)
+	return err
+}
+
+func (d *DB) UpdateSiteSSL(domain string, sslEnabled bool) error {
+	now := time.Now().UTC()
+	_, err := d.db.Exec("UPDATE sites SET ssl_enabled = ?, updated_at = ? WHERE domain = ?", sslEnabled, now, domain)
 	return err
 }
 

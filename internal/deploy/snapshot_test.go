@@ -11,13 +11,13 @@ import (
 
 type dummyAdapter struct{}
 
-func (d *dummyAdapter) Name() string                               { return "dummy" }
-func (d *dummyAdapter) Start() error                              { return nil }
-func (d *dummyAdapter) Stop() error                               { return nil }
-func (d *dummyAdapter) ApplyConfig(domain, rootPath string) error { return nil }
-func (d *dummyAdapter) RemoveConfig(domain string) error          { return nil }
-func (d *dummyAdapter) ProvisionSSL(domain string) error          { return nil }
-func (d *dummyAdapter) TestConfig() error                         { return nil }
+func (d *dummyAdapter) Name() string                                            { return "dummy" }
+func (d *dummyAdapter) Start() error                                           { return nil }
+func (d *dummyAdapter) Stop() error                                            { return nil }
+func (d *dummyAdapter) ApplyConfig(domain, rootPath string, sslEnabled bool) error { return nil }
+func (d *dummyAdapter) RemoveConfig(domain string) error                       { return nil }
+func (d *dummyAdapter) ProvisionSSL(domain string) error                       { return nil }
+func (d *dummyAdapter) TestConfig() error                                      { return nil }
 
 func TestSnapshotManager_CreateAndPublish(t *testing.T) {
 	tempDir := t.TempDir()
@@ -28,7 +28,7 @@ func TestSnapshotManager_CreateAndPublish(t *testing.T) {
 	defer db.Close()
 
 	dummy := &dummyAdapter{}
-	orch, _ := manager.NewOrchestrator(db, dummy, dummy)
+	orch, _ := manager.NewOrchestrator(db, dummy)
 
 	liveDir := filepath.Join(tempDir, "live")
 	snapDir := filepath.Join(tempDir, "snapshots")
