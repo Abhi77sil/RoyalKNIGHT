@@ -67,7 +67,20 @@ func (o *Orchestrator) DeploySite(domain, rootPath string, sslEnabled bool) (*st
 		return nil, fmt.Errorf("failed to save site metadata: %w", err)
 	}
 
-	if err := o.adapter.ApplyConfig(domain, rootPath, sslEnabled); err != nil {
+	settings, err := o.db.GetSiteSettings(domain)
+	if err != nil || settings == nil {
+		settings = &storage.SiteSettings{
+			Domain:           domain,
+			MaintenanceMode:  false,
+			CustomErrorPages: true,
+			ForceHTTPS:       true,
+			GzipEnabled:      true,
+			BrowserCache:     true,
+			AuthEnabled:      false,
+		}
+	}
+
+	if err := o.adapter.ApplySiteConfig(domain, rootPath, sslEnabled, *settings); err != nil {
 		return nil, fmt.Errorf("failed to apply nginx config: %w", err)
 	}
 
@@ -126,4 +139,49 @@ func (o *Orchestrator) ReloadServer() error {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	return o.adapter.Start()
+}
+
+// GetSiteSettings retrieves current site configuration toggles.
+func (o *Orchestrator) GetSiteSettings(domain string) (*storage.SiteSettings, error) {
+	return o.db.GetSiteSettings(domain)
+}
+
+// UpdateSiteSettings updates site configuration toggles and applies to Nginx.
+func (o *Orchestrator) UpdateSiteSettings(settings storage.SiteSettings) error {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+
+	site, err := o.db.GetSite(settings.Domain)
+	if err != nil || site == nil {
+		return fmt.Errorf("site %s not found", settings.Domain)
+	}
+
+	if err := o.db.UpsertSiteSettings(&settings); err != nil {
+		return fmt.Errorf("failed to save site settings: %w", err)
+	}
+
+	return o.adapter.ApplySiteConfig(settings.Domain, site.RootPath, site.SSLEnabled, settings)
+}
+
+// ToggleMaintenance quickly enables/disables maintenance mode for a site.
+func (o *Orchestrator) ToggleMaintenance(domain string, enabled bool) error {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+
+	site, err := o.db.GetSite(domain)
+	if err != nil || site == nil {
+		return fmt.Errorf("site %s not found", domain)
+	}
+
+	settings, err := o.db.GetSiteSettings(domain)
+	if err != nil {
+		return err
+	}
+	settings.MaintenanceMode = enabled
+
+	if err := o.db.UpsertSiteSettings(settings); err != nil {
+		return err
+	}
+
+	return o.adapter.ApplySiteConfig(domain, site.RootPath, site.SSLEnabled, *settings)
 }

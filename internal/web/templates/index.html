@@ -465,6 +465,104 @@
             <button id="closeDnsModalBtn2" class="btn btn-secondary btn-sm">Close</button>
           </div>
         </div>
+      <!-- Site Settings & Modern Hosting Features Modal -->
+      <div id="siteSettingsModal" class="modal" style="display:none;">
+        <div class="modal-content" style="max-width:620px;">
+          <div class="modal-header">
+            <h3 id="siteSettingsModalTitle">Site Settings &amp; Engine Controls</h3>
+            <button id="closeSiteSettingsModalBtn" class="btn btn-secondary btn-sm">&times;</button>
+          </div>
+          <div class="modal-body">
+            <input type="hidden" id="settingsDomain" />
+
+            <div class="settings-section">
+              <div class="setting-item">
+                <div class="setting-info">
+                  <div class="setting-title">Maintenance Mode</div>
+                  <div class="setting-desc">Returns HTTP 503 and displays a custom maintenance notice to visitors.</div>
+                </div>
+                <label class="switch">
+                  <input type="checkbox" id="settingMaintenanceMode">
+                  <span class="slider"></span>
+                </label>
+              </div>
+
+              <div class="setting-item">
+                <div class="setting-info">
+                  <div class="setting-title">Custom Dark Error Pages</div>
+                  <div class="setting-desc">Serves branded 404 Not Found and 50x Server Error pages.</div>
+                </div>
+                <label class="switch">
+                  <input type="checkbox" id="settingCustomErrorPages">
+                  <span class="slider"></span>
+                </label>
+              </div>
+
+              <div class="setting-item">
+                <div class="setting-info">
+                  <div class="setting-title">Force HTTPS / SSL Redirect</div>
+                  <div class="setting-desc">Automatically redirects all insecure HTTP port 80 traffic to HTTPS.</div>
+                </div>
+                <label class="switch">
+                  <input type="checkbox" id="settingForceHTTPS">
+                  <span class="slider"></span>
+                </label>
+              </div>
+
+              <div class="setting-item">
+                <div class="setting-info">
+                  <div class="setting-title">Gzip Compression</div>
+                  <div class="setting-desc">Compresses HTML, CSS, JavaScript, and SVG assets for faster loading.</div>
+                </div>
+                <label class="switch">
+                  <input type="checkbox" id="settingGzip">
+                  <span class="slider"></span>
+                </label>
+              </div>
+
+              <div class="setting-item">
+                <div class="setting-info">
+                  <div class="setting-title">Browser Asset Caching</div>
+                  <div class="setting-desc">Applies 30-day Cache-Control headers to images, CSS, and script assets.</div>
+                </div>
+                <label class="switch">
+                  <input type="checkbox" id="settingBrowserCache">
+                  <span class="slider"></span>
+                </label>
+              </div>
+
+              <div class="setting-item" style="border-bottom:none;">
+                <div class="setting-info">
+                  <div class="setting-title">HTTP Basic Auth Password Protection</div>
+                  <div class="setting-desc">Restricts website access with a username and password prompt.</div>
+                </div>
+                <label class="switch">
+                  <input type="checkbox" id="settingAuthEnabled">
+                  <span class="slider"></span>
+                </label>
+              </div>
+
+              <div id="authCredentialsGroup" style="display:none; padding:12px; background:#0d1117; border:1px solid #30363d; border-radius:6px; margin-top:4px;">
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                  <div>
+                    <label style="font-size:12px; color:#8b949e; display:block; margin-bottom:4px;">Username</label>
+                    <input type="text" id="settingAuthUser" class="form-input-sm" style="width:100%;" placeholder="admin" />
+                  </div>
+                  <div>
+                    <label style="font-size:12px; color:#8b949e; display:block; margin-bottom:4px;">Password</label>
+                    <input type="password" id="settingAuthPass" class="form-input-sm" style="width:100%;" placeholder="••••••••" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div id="settingsAlert" class="alert" style="display:none; margin-top:16px;"></div>
+          </div>
+          <div class="modal-footer" style="padding-top:16px; display:flex; justify-content:space-between;">
+            <button id="closeSiteSettingsModalBtn2" class="btn btn-secondary btn-sm">Cancel</button>
+            <button id="saveSiteSettingsBtn" class="btn btn-primary btn-sm">Save &amp; Apply</button>
+          </div>
+        </div>
       </div>
     </main>
   </div>

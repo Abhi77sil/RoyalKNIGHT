@@ -85,6 +85,19 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('dnsModal').style.display = 'none';
   });
 
+  // Site settings modal
+  document.getElementById('closeSiteSettingsModalBtn')?.addEventListener('click', () => {
+    document.getElementById('siteSettingsModal').style.display = 'none';
+  });
+  document.getElementById('closeSiteSettingsModalBtn2')?.addEventListener('click', () => {
+    document.getElementById('siteSettingsModal').style.display = 'none';
+  });
+  document.getElementById('saveSiteSettingsBtn')?.addEventListener('click', saveSiteSettings);
+  document.getElementById('settingAuthEnabled')?.addEventListener('change', (e) => {
+    const grp = document.getElementById('authCredentialsGroup');
+    if (grp) grp.style.display = e.target.checked ? 'block' : 'none';
+  });
+
   // Editor events
   document.getElementById('editorSaveBtn').addEventListener('click', handleSaveEditorContent);
   document.getElementById('editorCloseBtn').addEventListener('click', closeEditor);
@@ -389,16 +402,28 @@ function renderSitesTable(sites) {
       ? `<span class="badge badge-success" title="Trusted Let's Encrypt SSL Active">✓ SSL Active</span>`
       : `<button onclick="issueSSLForDomain('${escapeHtml(s.domain)}')" class="btn btn-accent btn-xs" title="Issue Let's Encrypt Certificate">⚡ Issue SSL</button>`;
 
+    const isMaintenance = s.settings && s.settings.maintenance_mode;
+    const isProtected = s.settings && s.settings.auth_enabled;
+
+    let statusBadges = `<span class="badge badge-success">${escapeHtml(s.status)}</span>`;
+    if (isMaintenance) {
+      statusBadges += ` <span class="badge badge-maintenance" title="HTTP 503 Maintenance Mode Active">Maintenance</span>`;
+    }
+    if (isProtected) {
+      statusBadges += ` <span class="badge badge-protected" title="HTTP Basic Auth Protected">Protected</span>`;
+    }
+
     return `
       <tr>
         <td>${domainLink}</td>
         <td>${versionBadge}</td>
         <td><code>${escapeHtml(s.root_path)}</code></td>
         <td>${sslStatus}</td>
-        <td><span class="badge badge-success">${escapeHtml(s.status)}</span></td>
+        <td>${statusBadges}</td>
         <td>${new Date(s.created_at).toLocaleDateString()}</td>
         <td>
           <div style="display:flex; gap:4px; align-items:center; flex-wrap:wrap;">
+            <button onclick="openSiteSettings('${escapeHtml(s.domain)}')" class="btn btn-secondary btn-xs" title="Site settings, maintenance mode, error pages, auth & cache">⚙ Settings</button>
             <button onclick="checkSiteDNS('${escapeHtml(s.domain)}')" class="btn btn-secondary btn-xs" title="Verify DNS A record points to this server">DNS</button>
             <button onclick="viewSiteConfig('${escapeHtml(s.domain)}')" class="btn btn-secondary btn-xs" title="View active Nginx virtual host configuration">Config</button>
             <button onclick="openVersionsForDomain('${escapeHtml(s.domain)}')" class="btn btn-secondary btn-xs" title="Manage site versions & snapshots">Versions</button>
@@ -409,6 +434,90 @@ function renderSitesTable(sites) {
       </tr>
     `;
   }).join('');
+}
+
+async function openSiteSettings(domain) {
+  const modal = document.getElementById('siteSettingsModal');
+  const alertEl = document.getElementById('settingsAlert');
+  alertEl.style.display = 'none';
+
+  document.getElementById('settingsDomain').value = domain;
+  document.getElementById('siteSettingsModalTitle').innerText = `Site Settings: ${domain}`;
+
+  try {
+    const res = await fetch(`/api/sites/${encodeURIComponent(domain)}/settings`);
+    if (!res.ok) {
+      alert('Failed to load site settings');
+      return;
+    }
+    const settings = await res.json();
+    document.getElementById('settingMaintenanceMode').checked = !!settings.maintenance_mode;
+    document.getElementById('settingCustomErrorPages').checked = settings.custom_error_pages !== false;
+    document.getElementById('settingForceHTTPS').checked = settings.force_https !== false;
+    document.getElementById('settingGzip').checked = settings.gzip_enabled !== false;
+    document.getElementById('settingBrowserCache').checked = settings.browser_cache !== false;
+    document.getElementById('settingAuthEnabled').checked = !!settings.auth_enabled;
+    document.getElementById('settingAuthUser').value = settings.auth_user || '';
+    document.getElementById('settingAuthPass').value = settings.auth_pass || '';
+
+    const authGroup = document.getElementById('authCredentialsGroup');
+    if (authGroup) {
+      authGroup.style.display = settings.auth_enabled ? 'block' : 'none';
+    }
+
+    modal.style.display = 'block';
+  } catch (err) {
+    alert(`Network error: ${err.message}`);
+  }
+}
+
+async function saveSiteSettings() {
+  const domain = document.getElementById('settingsDomain').value;
+  const alertEl = document.getElementById('settingsAlert');
+  alertEl.style.display = 'none';
+
+  const saveBtn = document.getElementById('saveSiteSettingsBtn');
+  if (saveBtn) saveBtn.disabled = true;
+
+  const payload = {
+    domain: domain,
+    maintenance_mode: document.getElementById('settingMaintenanceMode').checked,
+    custom_error_pages: document.getElementById('settingCustomErrorPages').checked,
+    force_https: document.getElementById('settingForceHTTPS').checked,
+    gzip_enabled: document.getElementById('settingGzip').checked,
+    browser_cache: document.getElementById('settingBrowserCache').checked,
+    auth_enabled: document.getElementById('settingAuthEnabled').checked,
+    auth_user: document.getElementById('settingAuthUser').value.trim(),
+    auth_pass: document.getElementById('settingAuthPass').value.trim()
+  };
+
+  try {
+    const res = await fetch(`/api/sites/${encodeURIComponent(domain)}/settings`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      alertEl.className = 'alert alert-danger';
+      alertEl.innerText = data.error || 'Failed to update settings';
+      alertEl.style.display = 'block';
+    } else {
+      alertEl.className = 'alert alert-success';
+      alertEl.innerText = 'Settings applied and Nginx reloaded successfully';
+      alertEl.style.display = 'block';
+      loadSites();
+      setTimeout(() => {
+        document.getElementById('siteSettingsModal').style.display = 'none';
+      }, 700);
+    }
+  } catch (err) {
+    alertEl.className = 'alert alert-danger';
+    alertEl.innerText = `Network error: ${err.message}`;
+    alertEl.style.display = 'block';
+  } finally {
+    if (saveBtn) saveBtn.disabled = false;
+  }
 }
 
 async function viewSiteConfig(domain) {

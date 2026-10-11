@@ -1,6 +1,9 @@
 package adapter
 
-import "errors"
+import (
+	"errors"
+	"royalknight/internal/storage"
+)
 
 var (
 	ErrServerNotRunning = errors.New("web server is not running")
@@ -13,6 +16,7 @@ type WebServerAdapter interface {
 	Start() error
 	Stop() error
 	ApplyConfig(domain string, rootPath string, sslEnabled bool) error
+	ApplySiteConfig(domain string, rootPath string, sslEnabled bool, settings storage.SiteSettings) error
 	RemoveConfig(domain string) error
 	ProvisionSSL(domain string) error
 	TestConfig() error

@@ -27,6 +27,19 @@ type Site struct {
 	UpdatedAt  time.Time `json:"updated_at"`
 }
 
+type SiteSettings struct {
+	Domain           string    `json:"domain"`
+	MaintenanceMode  bool      `json:"maintenance_mode"`
+	CustomErrorPages bool      `json:"custom_error_pages"`
+	ForceHTTPS       bool      `json:"force_https"`
+	GzipEnabled      bool      `json:"gzip_enabled"`
+	BrowserCache     bool      `json:"browser_cache"`
+	AuthEnabled      bool      `json:"auth_enabled"`
+	AuthUser         string    `json:"auth_user"`
+	AuthPass         string    `json:"auth_pass"`
+	UpdatedAt        time.Time `json:"updated_at"`
+}
+
 type Certificate struct {
 	ID        int64     `json:"id"`
 	Domain    string    `json:"domain"`

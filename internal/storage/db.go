@@ -115,6 +115,19 @@ func (d *DB) migrate() error {
 		created_at DATETIME NOT NULL
 	);
 	CREATE INDEX IF NOT EXISTS idx_traffic_domain_time ON traffic_events(domain, created_at);
+
+	CREATE TABLE IF NOT EXISTS site_settings (
+		domain TEXT PRIMARY KEY,
+		maintenance_mode BOOLEAN NOT NULL DEFAULT 0,
+		custom_error_pages BOOLEAN NOT NULL DEFAULT 1,
+		force_https BOOLEAN NOT NULL DEFAULT 1,
+		gzip_enabled BOOLEAN NOT NULL DEFAULT 1,
+		browser_cache BOOLEAN NOT NULL DEFAULT 1,
+		auth_enabled BOOLEAN NOT NULL DEFAULT 0,
+		auth_user TEXT NOT NULL DEFAULT '',
+		auth_pass TEXT NOT NULL DEFAULT '',
+		updated_at DATETIME NOT NULL
+	);
 	`
 	_, err := d.db.Exec(schema)
 	if err != nil {
@@ -521,6 +534,63 @@ func (d *DB) GetTrafficSummary(domain string) (*TrafficSummary, error) {
 	}
 
 	return summary, nil
+}
+
+// Site Settings operations
+func (d *DB) GetSiteSettings(domain string) (*SiteSettings, error) {
+	s := &SiteSettings{
+		Domain:           domain,
+		MaintenanceMode:  false,
+		CustomErrorPages: true,
+		ForceHTTPS:       true,
+		GzipEnabled:      true,
+		BrowserCache:     true,
+		AuthEnabled:      false,
+		UpdatedAt:        time.Now().UTC(),
+	}
+	err := d.db.QueryRow(`
+		SELECT domain, maintenance_mode, custom_error_pages, force_https, gzip_enabled, browser_cache, auth_enabled, auth_user, auth_pass, updated_at
+		FROM site_settings WHERE domain = ?
+	`, domain).Scan(
+		&s.Domain, &s.MaintenanceMode, &s.CustomErrorPages, &s.ForceHTTPS, &s.GzipEnabled, &s.BrowserCache, &s.AuthEnabled, &s.AuthUser, &s.AuthPass, &s.UpdatedAt,
+	)
+	if err == sql.ErrNoRows {
+		return s, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return s, nil
+}
+
+func (d *DB) UpsertSiteSettings(s *SiteSettings) error {
+	now := time.Now().UTC()
+	s.UpdatedAt = now
+	query := `
+	INSERT INTO site_settings (domain, maintenance_mode, custom_error_pages, force_https, gzip_enabled, browser_cache, auth_enabled, auth_user, auth_pass, updated_at)
+	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	ON CONFLICT(domain) DO UPDATE SET
+		maintenance_mode = excluded.maintenance_mode,
+		custom_error_pages = excluded.custom_error_pages,
+		force_https = excluded.force_https,
+		gzip_enabled = excluded.gzip_enabled,
+		browser_cache = excluded.browser_cache,
+		auth_enabled = excluded.auth_enabled,
+		auth_user = excluded.auth_user,
+		auth_pass = excluded.auth_pass,
+		updated_at = excluded.updated_at
+	`
+	_, err := d.db.Exec(query, s.Domain, s.MaintenanceMode, s.CustomErrorPages, s.ForceHTTPS, s.GzipEnabled, s.BrowserCache, s.AuthEnabled, s.AuthUser, s.AuthPass, now)
+	return err
+}
+
+func (d *DB) SetSiteMaintenance(domain string, enabled bool) error {
+	s, err := d.GetSiteSettings(domain)
+	if err != nil {
+		return err
+	}
+	s.MaintenanceMode = enabled
+	return d.UpsertSiteSettings(s)
 }
 
 

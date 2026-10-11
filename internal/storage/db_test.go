@@ -100,4 +100,34 @@ func TestStorage_DatabaseOperations(t *testing.T) {
 	if summary.UniqueVisitors != 2 {
 		t.Fatalf("expected 2 unique visitors, got %d", summary.UniqueVisitors)
 	}
+
+	// Site Settings
+	defSettings, err := db.GetSiteSettings("test.example.com")
+	if err != nil {
+		t.Fatalf("GetSiteSettings failed: %v", err)
+	}
+	if defSettings.MaintenanceMode {
+		t.Fatalf("expected default MaintenanceMode to be false")
+	}
+
+	defSettings.MaintenanceMode = true
+	defSettings.AuthEnabled = true
+	defSettings.AuthUser = "admin"
+	defSettings.AuthPass = "secret"
+	if err := db.UpsertSiteSettings(defSettings); err != nil {
+		t.Fatalf("UpsertSiteSettings failed: %v", err)
+	}
+
+	updated, err := db.GetSiteSettings("test.example.com")
+	if err != nil || !updated.MaintenanceMode || !updated.AuthEnabled || updated.AuthUser != "admin" {
+		t.Fatalf("Updated SiteSettings mismatch: %+v", updated)
+	}
+
+	if err := db.SetSiteMaintenance("test.example.com", false); err != nil {
+		t.Fatalf("SetSiteMaintenance failed: %v", err)
+	}
+	mOff, _ := db.GetSiteSettings("test.example.com")
+	if mOff.MaintenanceMode {
+		t.Fatalf("expected maintenance mode to be false after toggle")
+	}
 }

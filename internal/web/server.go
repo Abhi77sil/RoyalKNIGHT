@@ -91,6 +91,9 @@ func (s *Server) Routes() http.Handler {
 	protected.HandleFunc("GET /api/sites", s.handleListSites)
 	protected.HandleFunc("POST /api/sites/upload", s.handleUploadSite)
 	protected.HandleFunc("POST /api/sites/{domain}/ssl", s.handleIssueSSL)
+	protected.HandleFunc("GET /api/sites/{domain}/settings", s.handleGetSiteSettings)
+	protected.HandleFunc("POST /api/sites/{domain}/settings", s.handleUpdateSiteSettings)
+	protected.HandleFunc("POST /api/sites/{domain}/maintenance", s.handleToggleMaintenance)
 	protected.HandleFunc("GET /api/sites/{domain}/config", s.handleGetSiteConfig)
 	protected.HandleFunc("GET /api/sites/{domain}/dns-check", s.handleDomainDNSCheck)
 	protected.HandleFunc("DELETE /api/sites/{domain}", s.handleDeleteSite)
@@ -271,7 +274,8 @@ func (s *Server) handleTrackTraffic(w http.ResponseWriter, r *http.Request) {
 
 type SiteResponse struct {
 	storage.Site
-	ActiveVersion string `json:"active_version"`
+	ActiveVersion string                `json:"active_version"`
+	Settings      *storage.SiteSettings `json:"settings,omitempty"`
 }
 
 func (s *Server) handleListSites(w http.ResponseWriter, r *http.Request) {
@@ -285,6 +289,9 @@ func (s *Server) handleListSites(w http.ResponseWriter, r *http.Request) {
 		item := SiteResponse{Site: st, ActiveVersion: "live/baseline"}
 		if snap, _ := s.db.GetActiveSnapshot(st.Domain); snap != nil {
 			item.ActiveVersion = snap.Name
+		}
+		if settings, err := s.db.GetSiteSettings(st.Domain); err == nil {
+			item.Settings = settings
 		}
 		res = append(res, item)
 	}
@@ -392,6 +399,71 @@ func (s *Server) handleIssueSSL(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]string{"status": "issued", "domain": domain})
+}
+
+func (s *Server) handleGetSiteSettings(w http.ResponseWriter, r *http.Request) {
+	domain := r.PathValue("domain")
+	if domain == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "domain is required"})
+		return
+	}
+
+	settings, err := s.orchestrator.GetSiteSettings(domain)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, settings)
+}
+
+func (s *Server) handleUpdateSiteSettings(w http.ResponseWriter, r *http.Request) {
+	domain := r.PathValue("domain")
+	if domain == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "domain is required"})
+		return
+	}
+
+	var req storage.SiteSettings
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json payload"})
+		return
+	}
+	req.Domain = domain
+
+	if err := s.orchestrator.UpdateSiteSettings(req); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{"status": "updated", "settings": req})
+}
+
+func (s *Server) handleToggleMaintenance(w http.ResponseWriter, r *http.Request) {
+	domain := r.PathValue("domain")
+	if domain == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "domain is required"})
+		return
+	}
+
+	var req struct {
+		Enabled bool `json:"enabled"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid payload"})
+		return
+	}
+
+	if err := s.orchestrator.ToggleMaintenance(domain, req.Enabled); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"status":      "success",
+		"domain":      domain,
+		"maintenance": req.Enabled,
+	})
 }
 
 func (s *Server) handleServerReload(w http.ResponseWriter, r *http.Request) {

@@ -15,6 +15,9 @@ func (d *dummyAdapter) Name() string                                            
 func (d *dummyAdapter) Start() error                                           { return nil }
 func (d *dummyAdapter) Stop() error                                            { return nil }
 func (d *dummyAdapter) ApplyConfig(domain, rootPath string, sslEnabled bool) error { return nil }
+func (d *dummyAdapter) ApplySiteConfig(domain, rootPath string, sslEnabled bool, settings storage.SiteSettings) error {
+	return nil
+}
 func (d *dummyAdapter) RemoveConfig(domain string) error                       { return nil }
 func (d *dummyAdapter) ProvisionSSL(domain string) error                       { return nil }
 func (d *dummyAdapter) TestConfig() error                                      { return nil }

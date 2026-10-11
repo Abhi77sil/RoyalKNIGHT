@@ -150,6 +150,10 @@ free_port 2019
 # 6. Setup Directory Structures & Nginx ACME Challenge Route
 echo "[4/7] Configuring directories and global ACME challenge routing..."
 mkdir -p /var/lib/royalknight/snapshots
+mkdir -p /var/lib/royalknight/error_pages
+mkdir -p /var/lib/royalknight/auth
+chmod 755 /var/lib/royalknight/error_pages
+chmod 700 /var/lib/royalknight/auth
 mkdir -p /var/www/certbot
 chmod 755 /var/www
 chmod 755 /var/www/certbot

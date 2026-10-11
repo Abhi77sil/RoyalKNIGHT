@@ -42,6 +42,9 @@ func (m *mockAdapter) ApplyConfig(domain, rootPath string, sslEnabled bool) erro
 	m.appliedRoutes[domain] = rootPath
 	return nil
 }
+func (m *mockAdapter) ApplySiteConfig(domain, rootPath string, sslEnabled bool, settings storage.SiteSettings) error {
+	return m.ApplyConfig(domain, rootPath, sslEnabled)
+}
 func (m *mockAdapter) RemoveConfig(domain string) error {
 	delete(m.appliedRoutes, domain)
 	return nil
